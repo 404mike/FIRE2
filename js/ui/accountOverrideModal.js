@@ -81,7 +81,8 @@ export function openAccountOverrideModal(accountKey, rows, config) {
       <th class="col-num">${account.label} Balance</th>
       ${hasContribCols
         ? `<th title="Override the annual contribution to this account for this year (0 = stop contributions)">Contribution (£/yr)</th>
-           <th title="Override the portfolio drawdown rate for this year">Drawdown Rate (%)</th>`
+           <th title="Override the portfolio drawdown rate for this year">Drawdown Rate (%)</th>
+           <th class="col-num" title="Annual drawdown amount based on the rate and current balance">Drawdown (£/yr)</th>`
         : ''}
       <th title="Lump sum added to this account this year">Lump Sum In (£)</th>
       <th title="Extra drawdown taken from this account this year">Extra Draw Out (£)</th>
@@ -131,6 +132,12 @@ export function openAccountOverrideModal(accountKey, rows, config) {
             value="${drawdownRateVal}" placeholder="${config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4}"
             ${row.phase === 'accumulate' ? 'disabled title="Drawdown rate only applies during retirement"' : ''} />
         </td>
+        <td class="col-num drawdown-amount-cell">${(() => {
+          if (row.phase !== 'retire') return '—';
+          const rateOverride = drawdownRateVal !== '' ? drawdownRateVal : null;
+          const effectiveRate = _effectiveDrawdownRate(rateOverride, config);
+          return formatCurrency(effectiveRate / 100 * (row[account.balanceKey] || 0));
+        })()}</td>
       `;
     }
 
@@ -181,6 +188,15 @@ export function openAccountOverrideModal(accountKey, rows, config) {
         <button class="acct-modal-close btn btn-sm btn-secondary" aria-label="Close">✕ Close</button>
       </div>
       <p class="acct-modal-desc">${descHTML}</p>
+      ${hasContribCols ? `
+      <div class="acct-modal-rate-setter">
+        <label class="rate-setter-label" for="rate-setter-input">Set drawdown rate for all retirement years:</label>
+        <input id="rate-setter-input" class="rate-setter-input" type="number" min="0" max="100" step="0.1"
+          placeholder="${config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4}" />
+        <span class="rate-setter-unit">%</span>
+        <button class="btn btn-sm btn-primary rate-setter-apply">Apply to all</button>
+        <button class="btn btn-sm btn-secondary rate-setter-clear">Clear all</button>
+      </div>` : ''}
       <div class="acct-modal-scroll">
         <table class="acct-override-table year-table">
           <thead>${theadHTML}</thead>
@@ -218,6 +234,44 @@ export function openAccountOverrideModal(accountKey, rows, config) {
     });
   });
 
+  // Apply / Clear drawdown rate for all retirement years
+  if (hasContribCols) {
+    const rateSetterInput = overlay.querySelector('.rate-setter-input');
+
+    overlay.querySelector('.rate-setter-apply').addEventListener('click', () => {
+      if (rateSetterInput.value === '') return;
+      const val = parseFloat(rateSetterInput.value);
+      if (isNaN(val)) return;
+
+      const tbody = overlay.querySelector('tbody');
+      rows.forEach(row => {
+        if (row.phase !== 'retire') return;
+        setOverride(row.year, { [account.drawdownRateField]: val });
+        const tr = tbody?.querySelector(`tr[data-year="${row.year}"]`);
+        if (!tr) return;
+        const rateInput = tr.querySelector('.rate-input');
+        if (rateInput) rateInput.value = val ?? '';
+        const inputs = tr.querySelectorAll('.override-input:not([disabled])');
+        tr.classList.toggle('has-override', [...inputs].some(i => i.value !== ''));
+      });
+    });
+
+    overlay.querySelector('.rate-setter-clear').addEventListener('click', () => {
+      rateSetterInput.value = '';
+      const tbody = overlay.querySelector('tbody');
+      rows.forEach(row => {
+        if (row.phase !== 'retire') return;
+        setOverride(row.year, { [account.drawdownRateField]: null });
+        const tr = tbody?.querySelector(`tr[data-year="${row.year}"]`);
+        if (!tr) return;
+        const rateInput = tr.querySelector('.rate-input');
+        if (rateInput) rateInput.value = '';
+        const inputs = tr.querySelectorAll('.override-input:not([disabled])');
+        tr.classList.toggle('has-override', [...inputs].some(i => i.value !== ''));
+      });
+    });
+  }
+
   // Subscribe to state changes so the balance column stays up-to-date
   // while the modal is open and the user makes changes.
   // Debounce via requestAnimationFrame (consistent with app.js) to avoid
@@ -237,6 +291,15 @@ export function openAccountOverrideModal(accountKey, rows, config) {
         if (!tr) return;
         const balanceCell = tr.querySelector('.col-num');
         if (balanceCell) balanceCell.textContent = formatCurrency(row[account.balanceKey]);
+        if (account.drawdownRateField) {
+          const drawdownAmountCell = tr.querySelector('.drawdown-amount-cell');
+          if (drawdownAmountCell && row.phase === 'retire') {
+            const yearOverride = newConfig.overrides?.[row.year] || {};
+            const rateOverride = yearOverride[account.drawdownRateField];
+            const effectiveRate = _effectiveDrawdownRate(rateOverride, newConfig);
+            drawdownAmountCell.textContent = formatCurrency(effectiveRate / 100 * (row[account.balanceKey] || 0));
+          }
+        }
       });
     });
   });
@@ -265,4 +328,14 @@ function _closeActiveModal() {
 
 function _handleEsc(e) {
   if (e.key === 'Escape') _closeActiveModal();
+}
+
+/**
+ * Return the effective drawdown rate (as a percentage, e.g. 4) for a year,
+ * applying the per-year override when present and non-zero.
+ */
+function _effectiveDrawdownRate(rateOverride, config) {
+  return (rateOverride != null && rateOverride !== 0)
+    ? rateOverride
+    : (config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4);
 }
