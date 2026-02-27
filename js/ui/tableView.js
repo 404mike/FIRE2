@@ -46,6 +46,10 @@ export function renderTableView(container, rows, config) {
         <th>SIPP Lump</th>
         <th>Bonds Lump</th>
         <th>Cash Lump</th>
+        <th>ISA Draw</th>
+        <th>SIPP Draw</th>
+        <th>Bonds Draw</th>
+        <th>Cash Draw</th>
         <th>Note</th>
       </tr>
     </thead>
@@ -82,6 +86,10 @@ export function renderTableView(container, rows, config) {
         <td><input class="override-input" type="number" data-year="${row.year}" data-field="sippLumpSum" value="${override.sippLumpSum || ''}" placeholder="0" /></td>
         <td><input class="override-input" type="number" data-year="${row.year}" data-field="premiumBondLumpSum" value="${override.premiumBondLumpSum || ''}" placeholder="0" /></td>
         <td><input class="override-input" type="number" data-year="${row.year}" data-field="cashLumpSum" value="${override.cashLumpSum || ''}" placeholder="0" /></td>
+        <td><input class="override-input" type="number" data-year="${row.year}" data-field="isaCustomDrawdown" value="${override.isaCustomDrawdown || ''}" placeholder="0" /></td>
+        <td><input class="override-input" type="number" data-year="${row.year}" data-field="sippCustomDrawdown" value="${override.sippCustomDrawdown || ''}" placeholder="0" /></td>
+        <td><input class="override-input" type="number" data-year="${row.year}" data-field="premiumBondsCustomDrawdown" value="${override.premiumBondsCustomDrawdown || ''}" placeholder="0" /></td>
+        <td><input class="override-input" type="number" data-year="${row.year}" data-field="cashCustomDrawdown" value="${override.cashCustomDrawdown || ''}" placeholder="0" /></td>
         <td><input class="note-input" type="text" data-year="${row.year}" data-field="note" value="${override.note || ''}" placeholder="Note…" /></td>
       </tr>
     `;

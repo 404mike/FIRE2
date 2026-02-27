@@ -79,6 +79,10 @@ function buildSidebarHTML(s) {
           <label>Annual Contribution (£/yr)</label>
           <input type="number" id="isaAnnualContribution" value="${s.isa.annualContribution}" min="0" step="500" />
         </div>
+        <div class="field">
+          <label>Stop Contributions at Age (blank = never)</label>
+          <input type="number" id="isaStopContributionAge" value="${s.isa.stopContributionAge ?? ''}" min="18" max="100" placeholder="Never" />
+        </div>
       </div>
     </div>
 
@@ -112,6 +116,10 @@ function buildSidebarHTML(s) {
             <label>Access Age (NMPA)</label>
             <input type="number" id="sippAccessAge" value="${s.sipp.accessAge}" min="50" max="70" />
           </div>
+        </div>
+        <div class="field">
+          <label>Stop Contributions at Age (blank = never)</label>
+          <input type="number" id="sippStopContributionAge" value="${s.sipp.stopContributionAge ?? ''}" min="18" max="100" placeholder="Never" />
         </div>
       </div>
     </div>
@@ -168,6 +176,10 @@ function buildSidebarHTML(s) {
         <div class="field">
           <label>Annual Contribution (£/yr)</label>
           <input type="number" id="cashAnnualContribution" value="${s.cash.annualContribution}" min="0" step="500" />
+        </div>
+        <div class="field">
+          <label>Stop Contributions at Age (blank = never)</label>
+          <input type="number" id="cashStopContributionAge" value="${s.cash.stopContributionAge ?? ''}" min="18" max="100" placeholder="Never" />
         </div>
       </div>
     </div>
@@ -303,6 +315,7 @@ function attachEventListeners(container) {
   bindNumber(container,   'isaBalance',           v => setState({ isa: { balance: v } }));
   bindNumber(container,   'isaGrowthRate',        v => setState({ isa: { growthRate: v } }));
   bindNumber(container,   'isaAnnualContribution',v => setState({ isa: { annualContribution: v } }));
+  bindNullableNumber(container, 'isaStopContributionAge', v => setState({ isa: { stopContributionAge: v } }));
 
   // SIPP
   bindCheckbox(container, 'sippEnabled',           v => setState({ sipp: { enabled: v } }));
@@ -310,6 +323,7 @@ function attachEventListeners(container) {
   bindNumber(container,   'sippGrowthRate',         v => setState({ sipp: { growthRate: v } }));
   bindNumber(container,   'sippAnnualContribution', v => setState({ sipp: { annualContribution: v } }));
   bindNumber(container,   'sippAccessAge',          v => setState({ sipp: { accessAge: v } }));
+  bindNullableNumber(container, 'sippStopContributionAge', v => setState({ sipp: { stopContributionAge: v } }));
 
   // Premium Bonds
   bindCheckbox(container, 'pbEnabled',          v => setState({ premiumBonds: { enabled: v } }));
@@ -328,6 +342,7 @@ function attachEventListeners(container) {
   bindNumber(container,   'cashBalance',            v => setState({ cash: { balance: v } }));
   bindNumber(container,   'cashGrowthRate',         v => setState({ cash: { growthRate: v } }));
   bindNumber(container,   'cashAnnualContribution', v => setState({ cash: { annualContribution: v } }));
+  bindNullableNumber(container, 'cashStopContributionAge', v => setState({ cash: { stopContributionAge: v } }));
 
   // DB Pension
   bindCheckbox(container, 'dbEnabled',     v => setState({ dbPension: { enabled: v } }));
@@ -361,6 +376,17 @@ function bindNumber(container, id, fn) {
   el.addEventListener('change', () => {
     const v = parseFloat(el.value);
     if (!isNaN(v)) fn(v);
+  });
+}
+
+function bindNullableNumber(container, id, fn) {
+  const el = container.querySelector(`#${id}`);
+  if (!el) return;
+  el.addEventListener('change', () => {
+    const raw = el.value.trim();
+    if (raw === '') { fn(null); return; }
+    const parsed = Number(raw);
+    fn(isNaN(parsed) ? null : parsed);
   });
 }
 
