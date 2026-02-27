@@ -12,7 +12,7 @@
  * @param {object} balances        Current pot balances { isa, sipp, premiumBonds, cash }
  * @param {number} amount          Total amount to withdraw
  * @param {string[]} order         Withdrawal priority order (pot keys)
- * @param {object} constraints     { sippAccessAllowed: bool, premiumBondsDrawdownAllowed: bool }
+ * @param {object} constraints     { isaDrawdownAllowed: bool, sippAccessAllowed: bool, premiumBondsDrawdownAllowed: bool }
  * @returns {{ balances: object, withdrawn: object, shortfall: number }}
  */
 export function executeWithdrawal(balances, amount, order, constraints) {
@@ -24,6 +24,7 @@ export function executeWithdrawal(balances, amount, order, constraints) {
     if (remaining <= 0) break;
 
     // Check access constraints
+    if (pot === 'isa' && !constraints.isaDrawdownAllowed) continue;
     if (pot === 'sipp' && !constraints.sippAccessAllowed) continue;
     if (pot === 'premiumBonds' && !constraints.premiumBondsDrawdownAllowed) continue;
 

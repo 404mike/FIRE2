@@ -152,6 +152,12 @@ export function runProjection(config) {
       const sippAccessAge = config.sipp.accessAge || 57;
       const sippAccessAllowed = config.sipp.enabled && age >= sippAccessAge;
 
+      // ISA drawdown constraint
+      const isaDrawdownAge = config.isa.drawdownStartAge != null
+        ? config.isa.drawdownStartAge
+        : config.retirementAge;
+      const isaDrawdownAllowed = config.isa.enabled && age >= isaDrawdownAge;
+
       // Premium Bonds drawdown constraint
       const pbDrawdownAge = config.premiumBonds.drawdownStartAge !== null
         ? config.premiumBonds.drawdownStartAge
@@ -174,7 +180,7 @@ export function runProjection(config) {
           balances,
           gap,
           config.withdrawalOrder,
-          { sippAccessAllowed, premiumBondsDrawdownAllowed }
+          { isaDrawdownAllowed, sippAccessAllowed, premiumBondsDrawdownAllowed }
         );
         balances             = result.balances;
         isaWithdrawn          = result.withdrawn.isa;
