@@ -32,8 +32,10 @@ export function renderTableView(container, rows, config) {
   // Build account override buttons toolbar
   const accountButtons = ACCOUNT_DEFS.map(a => {
     const hasOverrides = Object.values(ov).some(yr =>
-      (yr[a.lumpSumField] && yr[a.lumpSumField] !== 0) ||
-      (yr[a.drawdownField] && yr[a.drawdownField] !== 0)
+      (yr[a.lumpSumField]  && yr[a.lumpSumField]  !== 0) ||
+      (yr[a.drawdownField] && yr[a.drawdownField] !== 0) ||
+      (a.contributionField && yr[a.contributionField] != null) ||
+      (a.drawdownRateField && yr[a.drawdownRateField] != null && yr[a.drawdownRateField] !== 0)
     );
     return `
       <button class="btn btn-sm btn-secondary acct-override-btn ${hasOverrides ? 'has-overrides' : ''}"
@@ -94,7 +96,9 @@ export function renderTableView(container, rows, config) {
     // Show a dot indicator if any account overrides exist for this year
     const yearHasOverride = ACCOUNT_DEFS.some(a =>
       (override[a.lumpSumField]  && override[a.lumpSumField]  !== 0) ||
-      (override[a.drawdownField] && override[a.drawdownField] !== 0)
+      (override[a.drawdownField] && override[a.drawdownField] !== 0) ||
+      (a.contributionField && override[a.contributionField] != null) ||
+      (a.drawdownRateField && override[a.drawdownRateField] != null && override[a.drawdownRateField] !== 0)
     );
     const overrideIndicator = yearHasOverride
       ? '<span class="row-override-dot" title="Has account overrides this year">●</span>'

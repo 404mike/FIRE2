@@ -778,3 +778,15 @@ header {
   color: var(--warning);
   font-weight: 600;
 }
+
+/* ── Wide modal variant (ISA/SIPP with extra columns) ── */
+.acct-modal-wide {
+  max-width: 860px;
+}
+
+/* Disabled override inputs (e.g. contribution during retirement) */
+.override-input:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: var(--surface-2);
+}
