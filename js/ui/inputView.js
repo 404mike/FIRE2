@@ -207,6 +207,10 @@ function buildSidebarHTML(s) {
           <label>Stop Contributions at Age (blank = never)</label>
           <input type="number" id="cashStopContributionAge" value="${s.cash.stopContributionAge ?? ''}" min="18" max="100" placeholder="Never" />
         </div>
+        <div class="field">
+          <label>Drawdown Start Age (blank = retirement age)</label>
+          <input type="number" id="cashDrawdownStartAge" value="${s.cash.drawdownStartAge ?? ''}" min="18" max="100" placeholder="Same as retirement age" />
+        </div>
         <button class="btn btn-sm btn-secondary btn-full acct-override-btn" data-account="cash"
                 title="Edit lump sum &amp; extra drawdown overrides for Cash">
           ⚙ Cash Overrides…
@@ -326,6 +330,7 @@ function attachEventListeners(container) {
   bindNumber(container,   'cashGrowthRate',         v => setState({ cash: { growthRate: v } }));
   bindNumber(container,   'cashAnnualContribution', v => setState({ cash: { annualContribution: v } }));
   bindNullableNumber(container, 'cashStopContributionAge', v => setState({ cash: { stopContributionAge: v } }));
+  bindNullableNumber(container, 'cashDrawdownStartAge',    v => setState({ cash: { drawdownStartAge: v } }));
 
   // DB Pension
   bindCheckbox(container, 'dbEnabled',     v => setState({ dbPension: { enabled: v } }));

@@ -7,7 +7,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { projectYear, getIsaDrawdownAllowed, getSippDrawdownAllowed } from '../js/engine/projectionUtils.js';
+import { projectYear, getIsaDrawdownAllowed, getSippDrawdownAllowed, getCashDrawdownAllowed } from '../js/engine/projectionUtils.js';
 
 // ── Growth vs drawdown relationship ─────────────────────────────────────────
 
@@ -156,4 +156,36 @@ test('SIPP drawdown not allowed before explicit drawdownStartAge, even if past a
 
 test('SIPP drawdown not allowed when SIPP is disabled', () => {
   assert.strictEqual(getSippDrawdownAllowed(makeSippConfig({ enabled: false }), 60), false);
+});
+
+// ── getCashDrawdownAllowed ───────────────────────────────────────────────────
+
+function makeCashConfig({ drawdownStartAge = null, retirementAge = 60, enabled = true } = {}) {
+  return {
+    retirementAge,
+    cash: { enabled, drawdownStartAge },
+  };
+}
+
+test('Cash drawdown allowed at retirement age when drawdownStartAge is null', () => {
+  assert.strictEqual(getCashDrawdownAllowed(makeCashConfig({ retirementAge: 60 }), 60), true);
+});
+
+test('Cash drawdown not allowed before retirement age when drawdownStartAge is null', () => {
+  assert.strictEqual(getCashDrawdownAllowed(makeCashConfig({ retirementAge: 60 }), 59), false);
+});
+
+test('Cash drawdown allowed from explicit drawdownStartAge', () => {
+  const config = makeCashConfig({ drawdownStartAge: 62, retirementAge: 60 });
+  assert.strictEqual(getCashDrawdownAllowed(config, 62), true);
+});
+
+test('Cash drawdown not allowed before explicit drawdownStartAge, even if retired', () => {
+  const config = makeCashConfig({ drawdownStartAge: 62, retirementAge: 60 });
+  assert.strictEqual(getCashDrawdownAllowed(config, 60), false);
+  assert.strictEqual(getCashDrawdownAllowed(config, 61), false);
+});
+
+test('Cash drawdown not allowed when Cash is disabled', () => {
+  assert.strictEqual(getCashDrawdownAllowed(makeCashConfig({ enabled: false }), 65), false);
 });

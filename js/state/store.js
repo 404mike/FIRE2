@@ -59,6 +59,8 @@ export const DEFAULT_STATE = {
     growthRate: 2,
     annualContribution: 0,
     stopContributionAge: null,
+    // Age from which drawdown begins (null = same as retirement)
+    drawdownStartAge: null,
   },
 
   // Pension income streams

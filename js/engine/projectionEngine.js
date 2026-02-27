@@ -24,7 +24,7 @@
 
 import { getPensionIncome } from './pensionEngine.js';
 import { executeWithdrawal } from './withdrawalStrategy.js';
-import { projectYear, getIsaDrawdownAllowed, getSippDrawdownAllowed } from './projectionUtils.js';
+import { projectYear, getIsaDrawdownAllowed, getSippDrawdownAllowed, getCashDrawdownAllowed } from './projectionUtils.js';
 
 /**
  * Run the full projection from currentAge to endAge.
@@ -94,6 +94,7 @@ export function runProjection(config) {
     // ── Step 2: Apply regular contributions (pre-retirement only) ─────────
     let isaContribution  = 0;
     let sippContribution = 0;
+    let cashContribution = 0;
 
     // Resolve year overrides early so they can be used in contribution logic
     const override = config.overrides[year] || {};
@@ -123,8 +124,13 @@ export function runProjection(config) {
       }
       if (config.cash.enabled) {
         const cashStop = config.cash.stopContributionAge;
-        if (!cashStop || age < cashStop) {
-          balances.cash += config.cash.annualContribution;
+        const hasCashContribOverride = override.cashContributionOverride != null;
+        if (hasCashContribOverride) {
+          cashContribution = override.cashContributionOverride;
+          balances.cash += cashContribution;
+        } else if (!cashStop || age < cashStop) {
+          cashContribution = config.cash.annualContribution;
+          balances.cash += cashContribution;
         }
       }
     }
@@ -133,7 +139,7 @@ export function runProjection(config) {
     if (override.isaLumpSum)          { balances.isa          += override.isaLumpSum;          isaContribution  += override.isaLumpSum; }
     if (override.sippLumpSum)         { balances.sipp         += override.sippLumpSum;         sippContribution += override.sippLumpSum; }
     if (override.premiumBondLumpSum)  { balances.premiumBonds += override.premiumBondLumpSum; }
-    if (override.cashLumpSum)         { balances.cash         += override.cashLumpSum; }
+    if (override.cashLumpSum)         { balances.cash         += override.cashLumpSum;         cashContribution += override.cashLumpSum; }
 
     // ── Step 4: Retirement withdrawals ────────────────────────────────────
     let isaWithdrawn          = 0;
@@ -156,10 +162,11 @@ export function runProjection(config) {
       ? config.premiumBonds.drawdownStartAge
       : config.retirementAge;
     const premiumBondsDrawdownAllowed = config.premiumBonds.enabled && age >= pbDrawdownAge;
+    const cashDrawdownAllowed = getCashDrawdownAllowed(config, age);
 
     // Drawdown fires from retirementAge, or earlier when any account has reached
     // its individual drawdown start date.
-    const inDrawdownPhase = isRetired || sippAccessAllowed || isaDrawdownAllowed || premiumBondsDrawdownAllowed;
+    const inDrawdownPhase = isRetired || sippAccessAllowed || isaDrawdownAllowed || premiumBondsDrawdownAllowed || cashDrawdownAllowed;
 
     if (inDrawdownPhase) {
       // Determine drawdown rate (default from sidebar, overridable per year)
@@ -207,14 +214,21 @@ export function runProjection(config) {
         balances.isa -= take;
         isaWithdrawn += take;
       }
+      if (override.cashDrawdownRateOverride != null && cashDrawdownAllowed) {
+        const rate = override.cashDrawdownRateOverride / 100;
+        const take = Math.min(Math.max(0, balances.cash), balances.cash * rate);
+        balances.cash -= take;
+        cashWithdrawn += take;
+      }
 
       // Reduce the main gap by what was already drawn via account-specific rates,
       // and exclude those accounts from the main withdrawal order.
-      const accountSpecificDrawn = sippWithdrawn + isaWithdrawn;
+      const accountSpecificDrawn = sippWithdrawn + isaWithdrawn + cashWithdrawn;
       const adjustedGap = Math.max(0, gap - accountSpecificDrawn);
       const effectiveWithdrawalOrder = config.withdrawalOrder.filter(pot => {
         if (pot === 'sipp' && override.sippDrawdownRateOverride != null && sippAccessAllowed) return false;
         if (pot === 'isa'  && override.isaDrawdownRateOverride  != null && isaDrawdownAllowed)  return false;
+        if (pot === 'cash' && override.cashDrawdownRateOverride != null && cashDrawdownAllowed) return false;
         return true;
       });
 
@@ -223,7 +237,7 @@ export function runProjection(config) {
           balances,
           adjustedGap,
           effectiveWithdrawalOrder,
-          { isaDrawdownAllowed, sippAccessAllowed, premiumBondsDrawdownAllowed }
+          { isaDrawdownAllowed, sippAccessAllowed, premiumBondsDrawdownAllowed, cashDrawdownAllowed }
         );
         balances              = result.balances;
         isaWithdrawn          += result.withdrawn.isa;
@@ -291,6 +305,7 @@ export function runProjection(config) {
       inflationFactor:     Math.round(inflationFactor * 10000) / 10000,
       isaContribution:     Math.round(isaContribution),
       sippContribution:    Math.round(sippContribution),
+      cashContribution:    Math.round(cashContribution),
       isaWithdrawn:        Math.round(isaWithdrawn),
       sippWithdrawn:       Math.round(sippWithdrawn),
       premiumBondsWithdrawn: Math.round(premiumBondsWithdrawn),
