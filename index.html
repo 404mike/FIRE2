@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIRE2 — Retirement Calculator</title>
+  <meta name="description" content="Advanced UK retirement modelling calculator. Model ISA, SIPP, Premium Bonds, DB pension and State Pension." />
+  <link rel="stylesheet" href="css/styles.css" />
+  <!-- Chart.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────── -->
+  <header>
+    <a class="logo" href="#"><span>FIRE</span>2</a>
+    <div class="header-actions">
+      <button class="btn btn-secondary btn-sm" id="shareBtn">
+        🔗 Share
+      </button>
+    </div>
+  </header>
+
+  <!-- ── App layout ─────────────────────────────────────────────── -->
+  <div class="app-layout">
+
+    <!-- Sidebar inputs -->
+    <aside class="sidebar" id="sidebar">
+      <!-- Populated by inputView.js -->
+      <div class="empty-state"><div class="spinner"></div></div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main-content">
+
+      <!-- Summary tiles -->
+      <section id="summary">
+        <!-- Populated by summaryView.js -->
+      </section>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="chart">📊 Chart</button>
+        <button class="tab-btn" data-tab="table">📋 Year Table</button>
+      </div>
+
+      <!-- Chart panel -->
+      <div class="tab-panel active" id="panel-chart">
+        <div class="chart-card">
+          <div class="chart-title">Portfolio Projection</div>
+          <div class="chart-wrapper">
+            <canvas id="mainChart"></canvas>
+          </div>
+          <div class="chart-legend" id="chartLegend">
+            <!-- Populated by app.js -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Year table panel -->
+      <div class="tab-panel" id="panel-table">
+        <div class="table-section" id="tableContainer">
+          <!-- Populated by tableView.js -->
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Toast notifications -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- App entry point (ES module) -->
+  <script type="module" src="js/app.js"></script>
+
+</body>
+</html>
