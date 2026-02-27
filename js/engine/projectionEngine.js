@@ -191,24 +191,52 @@ export function runProjection(config) {
       // the portfolio far faster than expected.
       const gap = drawdownRate > 0 ? rateDrawdown : spendingGap;
 
-      if (gap > 0) {
+      // ── Step 4a: Account-specific drawdown rate overrides ─────────────────
+      // These draw a specific percentage from a single account BEFORE the main
+      // portfolio-level withdrawal. The account is then excluded from the main
+      // withdrawal so it is not drawn twice, and the main gap is reduced by
+      // the amount already withdrawn here.
+      if (override.sippDrawdownRateOverride != null && sippAccessAllowed) {
+        const rate = override.sippDrawdownRateOverride / 100;
+        const take = Math.min(Math.max(0, balances.sipp), balances.sipp * rate);
+        balances.sipp -= take;
+        sippWithdrawn += take;
+      }
+      if (override.isaDrawdownRateOverride != null && isaDrawdownAllowed) {
+        const rate = override.isaDrawdownRateOverride / 100;
+        const take = Math.min(Math.max(0, balances.isa), balances.isa * rate);
+        balances.isa -= take;
+        isaWithdrawn += take;
+      }
+
+      // Reduce the main gap by what was already drawn via account-specific rates,
+      // and exclude those accounts from the main withdrawal order.
+      const accountSpecificDrawn = sippWithdrawn + isaWithdrawn;
+      const adjustedGap = Math.max(0, gap - accountSpecificDrawn);
+      const effectiveWithdrawalOrder = config.withdrawalOrder.filter(pot => {
+        if (pot === 'sipp' && override.sippDrawdownRateOverride != null && sippAccessAllowed) return false;
+        if (pot === 'isa'  && override.isaDrawdownRateOverride  != null && isaDrawdownAllowed)  return false;
+        return true;
+      });
+
+      if (adjustedGap > 0) {
         const result = executeWithdrawal(
           balances,
-          gap,
-          config.withdrawalOrder,
+          adjustedGap,
+          effectiveWithdrawalOrder,
           { isaDrawdownAllowed, sippAccessAllowed, premiumBondsDrawdownAllowed }
         );
-        balances             = result.balances;
-        isaWithdrawn          = result.withdrawn.isa;
-        sippWithdrawn         = result.withdrawn.sipp;
-        premiumBondsWithdrawn = result.withdrawn.premiumBonds;
-        cashWithdrawn         = result.withdrawn.cash;
-        // Shortfall is spending-based: did total income cover spending?
-        const totalIncomeSoFar = pensionIncome
-          + result.withdrawn.isa + result.withdrawn.sipp
-          + result.withdrawn.premiumBonds + result.withdrawn.cash;
-        shortfall = Math.max(0, requiredSpending - totalIncomeSoFar);
+        balances              = result.balances;
+        isaWithdrawn          += result.withdrawn.isa;
+        sippWithdrawn         += result.withdrawn.sipp;
+        premiumBondsWithdrawn += result.withdrawn.premiumBonds;
+        cashWithdrawn         += result.withdrawn.cash;
       }
+
+      // Shortfall is spending-based: did total income (pension + all withdrawals) cover spending?
+      const totalIncomeSoFar = pensionIncome
+        + isaWithdrawn + sippWithdrawn + premiumBondsWithdrawn + cashWithdrawn;
+      shortfall = Math.max(0, requiredSpending - totalIncomeSoFar);
 
       spendingCovered = requiredSpending - shortfall;
     }

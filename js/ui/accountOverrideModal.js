@@ -20,7 +20,7 @@ export const ACCOUNT_DEFS = [
     balanceKey:          'isaBalance',
     contributionField:   'isaContributionOverride',
     contributionKey:     'isaContribution',
-    drawdownRateField:   'drawdownRateOverride',
+    drawdownRateField:   'isaDrawdownRateOverride',
   },
   {
     key:                 'sipp',
@@ -31,7 +31,7 @@ export const ACCOUNT_DEFS = [
     balanceKey:          'sippBalance',
     contributionField:   'sippContributionOverride',
     contributionKey:     'sippContribution',
-    drawdownRateField:   'drawdownRateOverride',
+    drawdownRateField:   'sippDrawdownRateOverride',
   },
   {
     key:           'premiumBonds',
@@ -129,14 +129,15 @@ export function openAccountOverrideModal(accountKey, rows, config) {
         <td>
           <input class="override-input rate-input" type="number" min="0" max="100" step="0.1"
             data-year="${row.year}" data-field="${account.drawdownRateField}"
-            value="${drawdownRateVal}" placeholder="${config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4}"
+            value="${drawdownRateVal}" placeholder="0"
             ${row.phase === 'accumulate' ? 'disabled title="Drawdown rate only applies during retirement"' : ''} />
         </td>
         <td class="col-num drawdown-amount-cell">${(() => {
           if (row.phase !== 'retire') return '—';
-          const rateOverride = drawdownRateVal !== '' ? drawdownRateVal : null;
-          const effectiveRate = _effectiveDrawdownRate(rateOverride, config);
-          return formatCurrency(effectiveRate / 100 * (row[account.balanceKey] || 0));
+          if (drawdownRateVal === '') return '—';
+          const rate = parseFloat(drawdownRateVal);
+          if (isNaN(rate)) return '—';
+          return formatCurrency(rate / 100 * (row[account.balanceKey] || 0));
         })()}</td>
       `;
     }
@@ -167,8 +168,9 @@ export function openAccountOverrideModal(accountKey, rows, config) {
     drawdown (<strong>Out £</strong>) taken from it each year. Changes update the balance for that year and all subsequent years.`;
   if (hasContribCols) {
     descHTML += ` For accumulation years, override the regular <strong>Contribution (£/yr)</strong> (set 0 to
-      stop contributions that year). For retirement years, set a <strong>Drawdown Rate (%)</strong> to override
-      the default drawdown rate (${config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4}%) for that year.`;
+      stop contributions that year). For retirement years, set a <strong>Drawdown Rate (%)</strong> to draw
+      that percentage specifically from this account each year (independent of the global drawdown rate and
+      withdrawal order).`;
   }
   descHTML += ' Changes apply immediately to the projection.';
 
@@ -192,7 +194,7 @@ export function openAccountOverrideModal(accountKey, rows, config) {
       <div class="acct-modal-rate-setter">
         <label class="rate-setter-label" for="rate-setter-input">Set drawdown rate for all retirement years:</label>
         <input id="rate-setter-input" class="rate-setter-input" type="number" min="0" max="100" step="0.1"
-          placeholder="${config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4}" />
+          placeholder="0" />
         <span class="rate-setter-unit">%</span>
         <button class="btn btn-sm btn-primary rate-setter-apply">Apply to all</button>
         <button class="btn btn-sm btn-secondary rate-setter-clear">Clear all</button>
@@ -296,8 +298,11 @@ export function openAccountOverrideModal(accountKey, rows, config) {
           if (drawdownAmountCell && row.phase === 'retire') {
             const yearOverride = newConfig.overrides?.[row.year] || {};
             const rateOverride = yearOverride[account.drawdownRateField];
-            const effectiveRate = _effectiveDrawdownRate(rateOverride, newConfig);
-            drawdownAmountCell.textContent = formatCurrency(effectiveRate / 100 * (row[account.balanceKey] || 0));
+            if (rateOverride != null && rateOverride !== 0) {
+              drawdownAmountCell.textContent = formatCurrency(rateOverride / 100 * (row[account.balanceKey] || 0));
+            } else {
+              drawdownAmountCell.textContent = '—';
+            }
           }
         }
       });
