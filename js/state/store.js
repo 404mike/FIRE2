@@ -113,10 +113,24 @@ export function setState(partial) {
 
 /**
  * Replace entire state (e.g., when loading from URL/localStorage).
+ * Missing top-level object fields are filled in from DEFAULT_STATE so that
+ * accounts always have their required properties (e.g. growthRate) even when
+ * loading older saved states that pre-date those fields.
  * @param {typeof DEFAULT_STATE} newState
  */
 export function loadState(newState) {
-  _state = structuredClone(newState);
+  // Deep-merge each top-level object key with its default so new fields are
+  // populated even for states saved before those fields existed.
+  const merged = { ...DEFAULT_STATE };
+  for (const [key, value] of Object.entries(newState)) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)
+        && merged[key] !== null && typeof merged[key] === 'object') {
+      merged[key] = { ...merged[key], ...value };
+    } else {
+      merged[key] = value;
+    }
+  }
+  _state = structuredClone(merged);
   _notify();
 }
 

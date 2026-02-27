@@ -57,14 +57,16 @@ export function runProjection(config) {
     const inflationFactor = Math.pow(1 + inflationRate, i);
 
     // ── Step 1: Apply growth to each pot ──────────────────────────────────
+    // Growth is applied unconditionally (independent of contribution status),
+    // so balances continue to compound even after contributions have stopped.
     if (config.isa.enabled) {
-      balances.isa *= (1 + config.isa.growthRate / 100);
+      balances.isa *= (1 + (config.isa.growthRate ?? 0) / 100);
     }
     if (config.sipp.enabled) {
-      balances.sipp *= (1 + config.sipp.growthRate / 100);
+      balances.sipp *= (1 + (config.sipp.growthRate ?? 0) / 100);
     }
     if (config.premiumBonds.enabled) {
-      balances.premiumBonds *= (1 + config.premiumBonds.prizeRate / 100);
+      balances.premiumBonds *= (1 + (config.premiumBonds.prizeRate ?? 0) / 100);
       // Premium Bonds are capped at £50,000; any excess flows into cash
       const PB_CAP = 50000;
       if (balances.premiumBonds > PB_CAP) {
@@ -76,7 +78,7 @@ export function runProjection(config) {
       }
     }
     if (config.cash.enabled) {
-      balances.cash *= (1 + config.cash.growthRate / 100);
+      balances.cash *= (1 + (config.cash.growthRate ?? 0) / 100);
     }
 
     // ── Step 2: Apply regular contributions (pre-retirement only) ─────────

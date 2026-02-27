@@ -45,6 +45,7 @@ export function renderOutcomeChart(canvas, config) {
   const p90Rows = runProjection(_applyGrowthAdj(config, P90_ADJ));
 
   const labels = p50Rows.map(r => r.year);
+  const ageMap  = Object.fromEntries(p50Rows.map(r => [r.year, r.age]));
 
   // Deflate portfolio values to today's purchasing power
   const deflate = (value, i) => value / Math.pow(1 + inflationRate, i);
@@ -134,6 +135,11 @@ export function renderOutcomeChart(canvas, config) {
         legend: { display: false },
         tooltip: {
           callbacks: {
+            title(items) {
+              const year = labels[items[0].dataIndex];
+              const age  = ageMap[year];
+              return age !== undefined ? `${year} (age ${age})` : `${year}`;
+            },
             label(ctx) {
               const val = ctx.parsed.y;
               const abs = Math.abs(Math.round(val));
@@ -149,7 +155,11 @@ export function renderOutcomeChart(canvas, config) {
             maxTicksLimit: 10,
             font: { size: 10 },
             color: '#6b7280',
-            callback(val) { return labels[val]; },
+            callback(val) {
+              const year = labels[val];
+              const age  = ageMap[year];
+              return age !== undefined ? [String(year), `(age ${age})`] : String(year);
+            },
           },
           grid: { color: '#f0f2f5' },
         },
