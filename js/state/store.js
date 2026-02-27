@@ -38,9 +38,11 @@ export const DEFAULT_STATE = {
     balance: 45000,
     growthRate: 5,
     annualContribution: 5000,
-    // Year (age) from which SIPP drawdown is permitted
-    accessAge: 57, // UK NMPA 2028
     stopContributionAge: null,
+    // Minimum legal access age (UK NMPA 2028) — used as fallback when drawdownStartAge is null
+    accessAge: 57,
+    // Age from which drawdown begins (null = same as accessAge / NMPA)
+    drawdownStartAge: null,
   },
 
   premiumBonds: {

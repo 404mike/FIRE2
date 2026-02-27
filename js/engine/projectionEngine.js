@@ -146,7 +146,22 @@ export function runProjection(config) {
 
     const { total: pensionIncome, dbIncome, stateIncome } = getPensionIncome(config, age);
 
-    if (isRetired) {
+    // Per-account drawdown eligibility is computed outside the retirement gate so
+    // that accounts with an explicit drawdown start age earlier than retirementAge
+    // can begin drawing independently (e.g. SIPP accessible at NMPA 57 while the
+    // user is still working until 65).
+    const sippAccessAllowed = getSippDrawdownAllowed(config, age);
+    const isaDrawdownAllowed = getIsaDrawdownAllowed(config, age);
+    const pbDrawdownAge = config.premiumBonds.drawdownStartAge !== null
+      ? config.premiumBonds.drawdownStartAge
+      : config.retirementAge;
+    const premiumBondsDrawdownAllowed = config.premiumBonds.enabled && age >= pbDrawdownAge;
+
+    // Drawdown fires from retirementAge, or earlier when any account has reached
+    // its individual drawdown start date.
+    const inDrawdownPhase = isRetired || sippAccessAllowed || isaDrawdownAllowed || premiumBondsDrawdownAllowed;
+
+    if (inDrawdownPhase) {
       // Determine drawdown rate (default from sidebar, overridable per year)
       let drawdownRate = (config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4) / 100;
 
@@ -155,20 +170,9 @@ export function runProjection(config) {
         drawdownRate = override.drawdownRateOverride / 100;
       }
 
-      // Required spending: inflation-adjusted from today's money
-      requiredSpending = config.retirementSpending * inflationFactor;
-
-      // SIPP access constraint
-      const sippAccessAllowed = getSippDrawdownAllowed(config, age);
-
-      // ISA drawdown constraint
-      const isaDrawdownAllowed = getIsaDrawdownAllowed(config, age);
-
-      // Premium Bonds drawdown constraint
-      const pbDrawdownAge = config.premiumBonds.drawdownStartAge !== null
-        ? config.premiumBonds.drawdownStartAge
-        : config.retirementAge;
-      const premiumBondsDrawdownAllowed = config.premiumBonds.enabled && age >= pbDrawdownAge;
+      // Required spending only applies from retirement age; pre-retirement drawdown
+      // (e.g. SIPP before retirementAge) is driven by the drawdown rate only.
+      requiredSpending = isRetired ? config.retirementSpending * inflationFactor : 0;
 
       // Spending gap after pension income
       const spendingGap = Math.max(0, requiredSpending - pensionIncome);

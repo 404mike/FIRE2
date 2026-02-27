@@ -520,3 +520,91 @@ test('isaDrawdownRateOverride respects drawdownStartAge (no draw before access a
   // Age 59: ISA accessible — draw begins
   assert.ok(rows[4].isaWithdrawn > 0, 'Age 59: ISA should start drawing at drawdownStartAge');
 });
+
+// ── Per-account drawdown independent of retirementAge ───────────────────────
+
+test('SIPP draws from accessAge even when retirementAge is later', () => {
+  // UK scenario: NMPA reached at 57 while still working until 65.
+  // SIPP should start drawing at 57 regardless of retirementAge.
+  const config = makeConfig({
+    balance:       0,
+    growthRate:    0,
+    drawdownRate:  4,
+    spending:      0,
+    currentAge:    55,
+    retirementAge: 65,
+    endAge:        58,
+  });
+  config.isa.enabled     = false;
+  config.sipp.enabled    = true;
+  config.sipp.balance    = 100000;
+  config.sipp.growthRate = 0;
+  config.sipp.accessAge  = 57;
+  config.withdrawalOrder = ['sipp'];
+
+  const rows = runProjection(config);
+
+  // Ages 55–56: SIPP not yet accessible (accessAge = 57) — no draw
+  assert.strictEqual(rows[0].sippWithdrawn, 0, 'Age 55: SIPP should not draw before accessAge');
+  assert.strictEqual(rows[1].sippWithdrawn, 0, 'Age 56: SIPP should not draw before accessAge');
+  // Age 57: SIPP accessible — draws at 4% of 100,000 = 4,000, even though not yet retired
+  assert.strictEqual(rows[2].sippWithdrawn, 4000, 'Age 57: SIPP should draw at accessAge even before retirementAge');
+  assert.strictEqual(rows[2].sippBalance, 96000);
+  // Phase label remains 'accumulate' because retirementAge (65) not reached
+  assert.strictEqual(rows[2].phase, 'accumulate');
+});
+
+test('ISA with explicit drawdownStartAge before retirementAge draws early', () => {
+  // Scenario: user sets ISA drawdownStartAge = 60 but retirementAge = 65.
+  // ISA should start drawing at 60, not 65.
+  const config = makeConfig({
+    balance:       100000,
+    growthRate:    0,
+    drawdownRate:  4,
+    spending:      0,
+    currentAge:    58,
+    retirementAge: 65,
+    endAge:        61,
+  });
+  config.isa.drawdownStartAge = 60;
+
+  const rows = runProjection(config);
+
+  // Ages 58–59: ISA not yet at drawdownStartAge — no draw
+  assert.strictEqual(rows[0].isaWithdrawn, 0, 'Age 58: ISA should not draw before drawdownStartAge 60');
+  assert.strictEqual(rows[1].isaWithdrawn, 0, 'Age 59: ISA should not draw before drawdownStartAge 60');
+  // Age 60: ISA starts drawing at 4% of 100,000 = 4,000, even though not yet retired
+  assert.strictEqual(rows[2].isaWithdrawn, 4000, 'Age 60: ISA draws at explicit drawdownStartAge even before retirementAge');
+  assert.strictEqual(rows[2].phase, 'accumulate');
+});
+
+test('ISA contributions continue while SIPP draws before retirementAge', () => {
+  // When SIPP starts drawing pre-retirement, ISA contributions should still happen
+  // (the user is still working and contributing to their ISA).
+  const config = makeConfig({
+    balance:       0,
+    growthRate:    0,
+    drawdownRate:  4,
+    spending:      0,
+    currentAge:    57,
+    retirementAge: 65,
+    endAge:        58,
+  });
+  config.isa.enabled            = true;
+  config.isa.balance            = 50000;
+  config.isa.annualContribution = 10000;
+  config.sipp.enabled    = true;
+  config.sipp.balance    = 100000;
+  config.sipp.growthRate = 0;
+  config.sipp.accessAge  = 57;
+  config.withdrawalOrder = ['isa', 'sipp'];
+
+  const rows = runProjection(config);
+
+  // ISA contribution still made (not yet retired)
+  assert.strictEqual(rows[0].isaContribution, 10000, 'Age 57: ISA contribution should continue pre-retirement');
+  // SIPP draws 4% of pre-growth portfolio (50000 + 100000) = 6,000;
+  // ISA is not accessible before retirementAge (65) so SIPP is drawn
+  assert.strictEqual(rows[0].sippWithdrawn, 6000, 'Age 57: SIPP draws 4% of pre-growth portfolio');
+  assert.strictEqual(rows[0].isaWithdrawn, 0, 'Age 57: ISA not drawn (before retirementAge)');
+});

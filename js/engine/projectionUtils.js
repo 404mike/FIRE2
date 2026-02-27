@@ -49,8 +49,9 @@ export function getIsaDrawdownAllowed(config, age) {
 /**
  * Whether SIPP drawdown is allowed at a given age.
  *
- * SIPP access is gated by the Normal Minimum Pension Age (NMPA), stored as
- * `config.sipp.accessAge` (defaults to 57 for UK NMPA 2028).
+ * SIPP access is gated by `drawdownStartAge` when explicitly set.
+ * When null it falls back to `accessAge` (the Normal Minimum Pension Age,
+ * defaults to 57 for UK NMPA 2028).
  *
  * @param {object} config  Full app state
  * @param {number} age     Current age
@@ -58,6 +59,8 @@ export function getIsaDrawdownAllowed(config, age) {
  */
 export function getSippDrawdownAllowed(config, age) {
   if (!config.sipp.enabled) return false;
-  const accessAge = config.sipp.accessAge || 57;
-  return age >= accessAge;
+  const startAge = config.sipp.drawdownStartAge != null
+    ? config.sipp.drawdownStartAge
+    : (config.sipp.accessAge || 57);
+  return age >= startAge;
 }
