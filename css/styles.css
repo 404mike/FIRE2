@@ -354,7 +354,7 @@ header {
   box-shadow: var(--shadow);
 }
 
-.table-scroll { overflow-x: auto; }
+.table-scroll { overflow-x: auto; overflow-y: auto; max-height: 75vh; }
 
 .year-table {
   width: 100%;
@@ -373,6 +373,9 @@ header {
   text-align: right;
   white-space: nowrap;
   border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .year-table th:first-child { text-align: left; }
@@ -408,6 +411,13 @@ header {
   background: transparent;
   color: var(--text);
   transition: border-color 0.15s;
+  -moz-appearance: auto;
+}
+
+.override-input::-webkit-inner-spin-button,
+.override-input::-webkit-outer-spin-button {
+  -webkit-appearance: auto;
+  opacity: 1;
 }
 
 .override-input:focus {

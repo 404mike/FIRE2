@@ -27,6 +27,7 @@ export const DEFAULT_STATE = {
     balance: 75000,
     growthRate: 5,
     annualContribution: 10000,
+    stopContributionAge: null,
   },
 
   sipp: {
@@ -36,6 +37,7 @@ export const DEFAULT_STATE = {
     annualContribution: 5000,
     // Year (age) from which SIPP drawdown is permitted
     accessAge: 57, // UK NMPA 2028
+    stopContributionAge: null,
   },
 
   premiumBonds: {
@@ -51,6 +53,7 @@ export const DEFAULT_STATE = {
     balance: 10000,
     growthRate: 2,
     annualContribution: 0,
+    stopContributionAge: null,
   },
 
   // Pension income streams

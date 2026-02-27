@@ -59,6 +59,15 @@ export function runProjection(config) {
     }
     if (config.premiumBonds.enabled) {
       balances.premiumBonds *= (1 + config.premiumBonds.prizeRate / 100);
+      // Premium Bonds are capped at £50,000; any excess flows into cash
+      const PB_CAP = 50000;
+      if (balances.premiumBonds > PB_CAP) {
+        const excess = balances.premiumBonds - PB_CAP;
+        balances.premiumBonds = PB_CAP;
+        if (config.cash.enabled) {
+          balances.cash += excess;
+        }
+      }
     }
     if (config.cash.enabled) {
       balances.cash *= (1 + config.cash.growthRate / 100);
@@ -70,15 +79,24 @@ export function runProjection(config) {
 
     if (!isRetired) {
       if (config.isa.enabled) {
-        isaContribution = config.isa.annualContribution;
-        balances.isa += isaContribution;
+        const isaStop = config.isa.stopContributionAge;
+        if (!isaStop || age < isaStop) {
+          isaContribution = config.isa.annualContribution;
+          balances.isa += isaContribution;
+        }
       }
       if (config.sipp.enabled) {
-        sippContribution = config.sipp.annualContribution;
-        balances.sipp += sippContribution;
+        const sippStop = config.sipp.stopContributionAge;
+        if (!sippStop || age < sippStop) {
+          sippContribution = config.sipp.annualContribution;
+          balances.sipp += sippContribution;
+        }
       }
       if (config.cash.enabled) {
-        balances.cash += config.cash.annualContribution;
+        const cashStop = config.cash.stopContributionAge;
+        if (!cashStop || age < cashStop) {
+          balances.cash += config.cash.annualContribution;
+        }
       }
     }
 
@@ -139,6 +157,33 @@ export function runProjection(config) {
         premiumBondsWithdrawn = result.withdrawn.premiumBonds;
         cashWithdrawn         = result.withdrawn.cash;
         shortfall             = result.shortfall;
+      }
+
+      // ── Per-pot custom drawdown overrides (additional voluntary withdrawals) ──
+      const applyCustomDrawdown = (balance, amount) => {
+        const take = Math.min(Math.max(0, balance), amount || 0);
+        return take;
+      };
+
+      if (override.isaCustomDrawdown) {
+        const take = applyCustomDrawdown(balances.isa, override.isaCustomDrawdown);
+        balances.isa -= take;
+        isaWithdrawn += take;
+      }
+      if (override.sippCustomDrawdown && sippAccessAllowed) {
+        const take = applyCustomDrawdown(balances.sipp, override.sippCustomDrawdown);
+        balances.sipp -= take;
+        sippWithdrawn += take;
+      }
+      if (override.premiumBondsCustomDrawdown && premiumBondsDrawdownAllowed) {
+        const take = applyCustomDrawdown(balances.premiumBonds, override.premiumBondsCustomDrawdown);
+        balances.premiumBonds -= take;
+        premiumBondsWithdrawn += take;
+      }
+      if (override.cashCustomDrawdown) {
+        const take = applyCustomDrawdown(balances.cash, override.cashCustomDrawdown);
+        balances.cash -= take;
+        cashWithdrawn += take;
       }
 
       spendingCovered = requiredSpending - shortfall;
