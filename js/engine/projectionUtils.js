@@ -64,3 +64,21 @@ export function getSippDrawdownAllowed(config, age) {
     : (config.sipp.accessAge || 57);
   return age >= startAge;
 }
+
+/**
+ * Whether Cash drawdown is allowed at a given age.
+ *
+ * Cash drawdown can be deferred beyond retirement via `drawdownStartAge`.
+ * When `drawdownStartAge` is null the Cash becomes available from `retirementAge`.
+ *
+ * @param {object} config  Full app state
+ * @param {number} age     Current age
+ * @returns {boolean}
+ */
+export function getCashDrawdownAllowed(config, age) {
+  if (!config.cash.enabled) return false;
+  const startAge = config.cash.drawdownStartAge != null
+    ? config.cash.drawdownStartAge
+    : config.retirementAge;
+  return age >= startAge;
+}

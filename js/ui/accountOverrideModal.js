@@ -9,7 +9,7 @@
 import { formatCurrency } from './helpers.js';
 import { setOverride, subscribe, getState } from '../state/store.js';
 import { runProjection } from '../engine/projectionEngine.js';
-import { getIsaDrawdownAllowed, getSippDrawdownAllowed } from '../engine/projectionUtils.js';
+import { getIsaDrawdownAllowed, getSippDrawdownAllowed, getCashDrawdownAllowed } from '../engine/projectionUtils.js';
 
 export const ACCOUNT_DEFS = [
   {
@@ -48,13 +48,17 @@ export const ACCOUNT_DEFS = [
     withdrawnKey:  'premiumBondsWithdrawn',
   },
   {
-    key:           'cash',
-    label:         'Cash',
-    icon:          '💵',
-    lumpSumField:  'cashLumpSum',
-    drawdownField: 'cashCustomDrawdown',
-    balanceKey:    'cashBalance',
-    withdrawnKey:  'cashWithdrawn',
+    key:                 'cash',
+    label:               'Cash',
+    icon:                '💵',
+    lumpSumField:        'cashLumpSum',
+    drawdownField:       'cashCustomDrawdown',
+    balanceKey:          'cashBalance',
+    withdrawnKey:        'cashWithdrawn',
+    contributionField:   'cashContributionOverride',
+    contributionKey:     'cashContribution',
+    drawdownRateField:   'cashDrawdownRateOverride',
+    drawdownAllowedFn:   (config, age) => getCashDrawdownAllowed(config, age),
   },
 ];
 

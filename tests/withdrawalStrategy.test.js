@@ -14,6 +14,7 @@ const ALL_ALLOWED = {
   isaDrawdownAllowed:          true,
   sippAccessAllowed:           true,
   premiumBondsDrawdownAllowed: true,
+  cashDrawdownAllowed:         true,
 };
 
 // ── Priority order ───────────────────────────────────────────────────────────
@@ -80,6 +81,16 @@ test('skips Premium Bonds when not yet at drawdown age', () => {
     balances, 10000, ['premiumBonds', 'isa'], constraints,
   );
   assert.strictEqual(withdrawn.premiumBonds, 0);
+  assert.strictEqual(withdrawn.isa, 10000);
+});
+
+test('skips Cash when not yet at drawdown age', () => {
+  const balances = { isa: 50000, sipp: 0, premiumBonds: 0, cash: 50000 };
+  const constraints = { ...ALL_ALLOWED, cashDrawdownAllowed: false };
+  const { withdrawn } = executeWithdrawal(
+    balances, 10000, ['cash', 'isa'], constraints,
+  );
+  assert.strictEqual(withdrawn.cash, 0);
   assert.strictEqual(withdrawn.isa, 10000);
 });
 

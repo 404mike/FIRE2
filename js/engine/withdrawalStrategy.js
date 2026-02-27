@@ -27,6 +27,7 @@ export function executeWithdrawal(balances, amount, order, constraints) {
     if (pot === 'isa' && !constraints.isaDrawdownAllowed) continue;
     if (pot === 'sipp' && !constraints.sippAccessAllowed) continue;
     if (pot === 'premiumBonds' && !constraints.premiumBondsDrawdownAllowed) continue;
+    if (pot === 'cash' && !constraints.cashDrawdownAllowed) continue;
 
     const available = Math.max(0, newBalances[pot] || 0);
     const take = Math.min(available, remaining);

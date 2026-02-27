@@ -69,6 +69,7 @@ function makeConfig({
       growthRate: 0,
       annualContribution: 0,
       stopContributionAge: null,
+      drawdownStartAge: null,
     },
     dbPension:    { enabled: false, annualIncome: 0, startAge: 65 },
     statePension: { enabled: false, annualIncome: 0 },
@@ -607,4 +608,150 @@ test('ISA contributions continue while SIPP draws before retirementAge', () => {
   // ISA is not accessible before retirementAge (65) so SIPP is drawn
   assert.strictEqual(rows[0].sippWithdrawn, 6000, 'Age 57: SIPP draws 4% of pre-growth portfolio');
   assert.strictEqual(rows[0].isaWithdrawn, 0, 'Age 57: ISA not drawn (before retirementAge)');
+});
+
+// ── Cash: contribution tracking ─────────────────────────────────────────────
+
+test('cash contribution is tracked in the output row', () => {
+  const config = makeConfig({ balance: 0, growthRate: 0, drawdownRate: 0, retirementAge: 70 });
+  config.cash.enabled            = true;
+  config.cash.balance            = 10000;
+  config.cash.growthRate         = 0;
+  config.cash.annualContribution = 3000;
+  const rows = runProjection(config);
+  // Year 0: contribution = 3000
+  assert.strictEqual(rows[0].cashContribution, 3000);
+  // Balance: 10000 + 3000 = 13000
+  assert.strictEqual(rows[0].cashBalance, 13000);
+});
+
+test('cash contribution stops at stopContributionAge', () => {
+  const config = makeConfig({
+    balance: 0, growthRate: 0, drawdownRate: 0,
+    currentAge: 55, retirementAge: 70, endAge: 57,
+  });
+  config.cash.enabled            = true;
+  config.cash.balance            = 10000;
+  config.cash.growthRate         = 0;
+  config.cash.annualContribution = 3000;
+  config.cash.stopContributionAge = 56;  // stop at 56
+
+  const rows = runProjection(config);
+
+  // age 55 (i=0): contribution applies
+  assert.strictEqual(rows[0].cashContribution, 3000);
+  // age 56 (i=1): no contribution
+  assert.strictEqual(rows[1].cashContribution, 0);
+  // age 57 (i=2): no contribution
+  assert.strictEqual(rows[2].cashContribution, 0);
+});
+
+test('cashContributionOverride replaces regular contribution for that year', () => {
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({ balance: 0, growthRate: 0, drawdownRate: 0, retirementAge: 70 });
+  config.cash.enabled            = true;
+  config.cash.balance            = 10000;
+  config.cash.growthRate         = 0;
+  config.cash.annualContribution = 3000;
+  config.overrides[currentYear]  = { cashContributionOverride: 7000 };
+
+  const rows = runProjection(config);
+
+  // Override replaces the 3000 contribution with 7000
+  assert.strictEqual(rows[0].cashContribution, 7000);
+  assert.strictEqual(rows[0].cashBalance, 17000);
+  // Year 1: back to regular contribution
+  assert.strictEqual(rows[1].cashContribution, 3000);
+});
+
+// ── Cash: drawdown rate override ─────────────────────────────────────────────
+
+test('cashDrawdownRateOverride draws specifically from Cash at the configured rate', () => {
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       0,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      0,
+    currentAge:    60,
+    retirementAge: 60,
+    endAge:        61,
+  });
+  config.isa.enabled    = false;
+  config.cash.enabled   = true;
+  config.cash.balance   = 100000;
+  config.cash.growthRate = 0;
+  config.withdrawalOrder = ['isa', 'sipp', 'premiumBonds', 'cash'];
+  config.overrides[currentYear] = { cashDrawdownRateOverride: 5 };
+
+  const rows = runProjection(config);
+
+  // Cash draws 5% = 5,000
+  assert.strictEqual(rows[0].cashWithdrawn, 5000);
+  assert.strictEqual(rows[0].cashBalance, 95000);
+});
+
+test('cashDrawdownRateOverride respects drawdownStartAge (no draw before access age)', () => {
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       0,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      0,
+    currentAge:    55,
+    retirementAge: 65,
+    endAge:        60,
+  });
+  config.isa.enabled          = false;
+  config.cash.enabled         = true;
+  config.cash.balance         = 100000;
+  config.cash.growthRate      = 0;
+  config.cash.drawdownStartAge = 58;
+  config.withdrawalOrder = ['cash'];
+
+  // Apply 5% cash rate override to all years
+  for (let yr = currentYear; yr <= currentYear + 5; yr++) {
+    config.overrides[yr] = { cashDrawdownRateOverride: 5 };
+  }
+
+  const rows = runProjection(config);
+
+  // Ages 55–57: cash not yet accessible
+  assert.strictEqual(rows[0].cashWithdrawn, 0, 'Age 55: cash should not draw before drawdownStartAge');
+  assert.strictEqual(rows[1].cashWithdrawn, 0, 'Age 56: cash should not draw before drawdownStartAge');
+  assert.strictEqual(rows[2].cashWithdrawn, 0, 'Age 57: cash should not draw before drawdownStartAge');
+  // Age 58: cash accessible — draw begins
+  assert.ok(rows[3].cashWithdrawn > 0, 'Age 58: cash should start drawing at drawdownStartAge');
+});
+
+test('cash drawdown deferred when drawdownStartAge is after retirementAge', () => {
+  // Similar to ISA deferred drawdown: cash has explicit drawdownStartAge > retirementAge
+  const config = makeConfig({
+    balance:       100000,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      10000,
+    currentAge:    55,
+    retirementAge: 55,
+    endAge:        60,
+  });
+  config.isa.enabled          = false;
+  config.cash.enabled         = true;
+  config.cash.balance         = 50000;
+  config.cash.growthRate      = 0;
+  config.cash.drawdownStartAge = 58;
+  config.sipp.enabled         = true;
+  config.sipp.balance         = 50000;
+  config.sipp.growthRate      = 0;
+  config.sipp.accessAge       = 55;
+  config.withdrawalOrder = ['cash', 'sipp'];
+
+  const rows = runProjection(config);
+
+  // Ages 55–57: cash not accessible; spending covered by SIPP
+  for (let i = 0; i < 3; i++) {
+    assert.strictEqual(rows[i].cashWithdrawn, 0, `Age ${55 + i}: cash should not draw before drawdownStartAge 58`);
+  }
+  // Age 58: cash accessible — spending drawn from cash (first in order)
+  assert.strictEqual(rows[3].cashWithdrawn, 10000, 'Age 58: cash draws from drawdownStartAge');
 });
