@@ -44,6 +44,7 @@ export function runProjection(config) {
   };
 
   const numYears = config.endAge - config.currentAge;
+  const sippAccessAge = config.sipp.accessAge || 57;
 
   for (let i = 0; i <= numYears; i++) {
     const age  = config.currentAge + i;
@@ -185,34 +186,36 @@ export function runProjection(config) {
         shortfall = Math.max(0, requiredSpending - totalIncomeSoFar);
       }
 
-      // ── Per-pot custom drawdown overrides (additional voluntary withdrawals) ──
-      const applyCustomDrawdown = (balance, amount) => {
-        const take = Math.min(Math.max(0, balance), amount || 0);
-        return take;
-      };
-
-      if (override.isaCustomDrawdown) {
-        const take = applyCustomDrawdown(balances.isa, override.isaCustomDrawdown);
-        balances.isa -= take;
-        isaWithdrawn += take;
-      }
-      if (override.sippCustomDrawdown && sippAccessAllowed) {
-        const take = applyCustomDrawdown(balances.sipp, override.sippCustomDrawdown);
-        balances.sipp -= take;
-        sippWithdrawn += take;
-      }
-      if (override.premiumBondsCustomDrawdown && premiumBondsDrawdownAllowed) {
-        const take = applyCustomDrawdown(balances.premiumBonds, override.premiumBondsCustomDrawdown);
-        balances.premiumBonds -= take;
-        premiumBondsWithdrawn += take;
-      }
-      if (override.cashCustomDrawdown) {
-        const take = applyCustomDrawdown(balances.cash, override.cashCustomDrawdown);
-        balances.cash -= take;
-        cashWithdrawn += take;
-      }
-
       spendingCovered = requiredSpending - shortfall;
+    }
+
+    // ── Per-pot custom drawdown overrides (additional voluntary withdrawals) ──
+    // Applied in both accumulation and retirement phases so manual overrides
+    // always affect balances regardless of phase.
+    const applyCustomDrawdown = (balance, amount) => {
+      const take = Math.min(Math.max(0, balance), amount || 0);
+      return take;
+    };
+
+    if (override.isaCustomDrawdown) {
+      const take = applyCustomDrawdown(balances.isa, override.isaCustomDrawdown);
+      balances.isa -= take;
+      isaWithdrawn += take;
+    }
+    if (override.sippCustomDrawdown && config.sipp.enabled && age >= sippAccessAge) {
+      const take = applyCustomDrawdown(balances.sipp, override.sippCustomDrawdown);
+      balances.sipp -= take;
+      sippWithdrawn += take;
+    }
+    if (override.premiumBondsCustomDrawdown && config.premiumBonds.enabled) {
+      const take = applyCustomDrawdown(balances.premiumBonds, override.premiumBondsCustomDrawdown);
+      balances.premiumBonds -= take;
+      premiumBondsWithdrawn += take;
+    }
+    if (override.cashCustomDrawdown && config.cash.enabled) {
+      const take = applyCustomDrawdown(balances.cash, override.cashCustomDrawdown);
+      balances.cash -= take;
+      cashWithdrawn += take;
     }
 
     const totalWithdrawn =
