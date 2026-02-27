@@ -457,3 +457,66 @@ test('sippDrawdownRateOverride and global portfolio drawdown coexist correctly',
   // Total withdrawn = 3,000 (SIPP) + 5,000 (ISA) = 8,000
   assert.strictEqual(rows[0].totalWithdrawn, 8000);
 });
+
+// ── ISA drawdownStartAge constraint ─────────────────────────────────────────
+
+test('ISA drawdown deferred when drawdownStartAge > retirementAge', () => {
+  // Issue: ISA shows drawdown starting at retirement (55) but engine correctly
+  // defers to the explicit drawdownStartAge (59).
+  const config = makeConfig({
+    balance:       100000,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      10000,
+    currentAge:    55,
+    retirementAge: 55,
+    endAge:        60,
+  });
+  config.isa.drawdownStartAge = 59;
+  config.cash.enabled  = true;
+  config.cash.balance  = 50000;
+  config.cash.growthRate = 0;
+  config.withdrawalOrder = ['isa', 'cash'];
+
+  const rows = runProjection(config);
+
+  // Ages 55–58: ISA not accessible; spending covered by cash
+  for (let i = 0; i < 4; i++) {
+    assert.strictEqual(rows[i].isaWithdrawn, 0, `Age ${55 + i}: ISA should not draw before drawdownStartAge 59`);
+    assert.strictEqual(rows[i].cashWithdrawn, 10000, `Age ${55 + i}: cash should cover spending`);
+  }
+  // Age 59: ISA accessible — spending drawn from ISA (first in order)
+  assert.strictEqual(rows[4].isaWithdrawn, 10000, 'Age 59: ISA should draw from drawdownStartAge');
+  assert.strictEqual(rows[4].cashWithdrawn, 0, 'Age 59: cash not drawn when ISA covers spending');
+});
+
+test('isaDrawdownRateOverride respects drawdownStartAge (no draw before access age)', () => {
+  // When drawdownStartAge is set beyond retirement age, the ISA-specific rate
+  // override must not draw from ISA until the drawdownStartAge is reached.
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       100000,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      0,
+    currentAge:    55,
+    retirementAge: 55,
+    endAge:        60,
+  });
+  config.isa.drawdownStartAge = 59;
+
+  // Apply 5% ISA rate override to all years
+  for (let yr = currentYear; yr <= currentYear + 5; yr++) {
+    config.overrides[yr] = { isaDrawdownRateOverride: 5 };
+  }
+
+  const rows = runProjection(config);
+
+  // Ages 55–58: ISA not yet accessible — no draw
+  assert.strictEqual(rows[0].isaWithdrawn, 0, 'Age 55: ISA should not draw before drawdownStartAge');
+  assert.strictEqual(rows[1].isaWithdrawn, 0, 'Age 56: ISA should not draw before drawdownStartAge');
+  assert.strictEqual(rows[2].isaWithdrawn, 0, 'Age 57: ISA should not draw before drawdownStartAge');
+  assert.strictEqual(rows[3].isaWithdrawn, 0, 'Age 58: ISA should not draw before drawdownStartAge');
+  // Age 59: ISA accessible — draw begins
+  assert.ok(rows[4].isaWithdrawn > 0, 'Age 59: ISA should start drawing at drawdownStartAge');
+});

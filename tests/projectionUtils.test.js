@@ -7,7 +7,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { projectYear } from '../js/engine/projectionUtils.js';
+import { projectYear, getIsaDrawdownAllowed, getSippDrawdownAllowed } from '../js/engine/projectionUtils.js';
 
 // ── Growth vs drawdown relationship ─────────────────────────────────────────
 
@@ -85,4 +85,63 @@ test('problem statement example: £416,089 at 5% growth, 2% drawdown ≈ £428,5
     Math.abs(result - 428571.67) < 1,
     `Expected ≈ 428571.67, got ${result}`,
   );
+});
+
+// ── getIsaDrawdownAllowed ─────────────────────────────────────────────────────
+
+function makeIsaConfig({ drawdownStartAge = null, retirementAge = 55, enabled = true } = {}) {
+  return {
+    retirementAge,
+    isa: { enabled, drawdownStartAge },
+  };
+}
+
+test('ISA drawdown allowed at retirement age when drawdownStartAge is null', () => {
+  assert.strictEqual(getIsaDrawdownAllowed(makeIsaConfig({ retirementAge: 55 }), 55), true);
+});
+
+test('ISA drawdown not allowed before retirement age when drawdownStartAge is null', () => {
+  assert.strictEqual(getIsaDrawdownAllowed(makeIsaConfig({ retirementAge: 55 }), 54), false);
+});
+
+test('ISA drawdown allowed from explicit drawdownStartAge', () => {
+  const config = makeIsaConfig({ drawdownStartAge: 59, retirementAge: 55 });
+  assert.strictEqual(getIsaDrawdownAllowed(config, 59), true);
+});
+
+test('ISA drawdown not allowed before explicit drawdownStartAge, even if retired', () => {
+  // Retirement at 55 but drawdownStartAge explicitly set to 59
+  const config = makeIsaConfig({ drawdownStartAge: 59, retirementAge: 55 });
+  assert.strictEqual(getIsaDrawdownAllowed(config, 55), false);
+  assert.strictEqual(getIsaDrawdownAllowed(config, 58), false);
+});
+
+test('ISA drawdown not allowed when ISA is disabled', () => {
+  assert.strictEqual(getIsaDrawdownAllowed(makeIsaConfig({ enabled: false }), 60), false);
+});
+
+// ── getSippDrawdownAllowed ───────────────────────────────────────────────────
+
+function makeSippConfig({ accessAge = 57, enabled = true } = {}) {
+  return {
+    sipp: { enabled, accessAge },
+  };
+}
+
+test('SIPP drawdown allowed at accessAge', () => {
+  assert.strictEqual(getSippDrawdownAllowed(makeSippConfig({ accessAge: 57 }), 57), true);
+});
+
+test('SIPP drawdown not allowed before accessAge', () => {
+  assert.strictEqual(getSippDrawdownAllowed(makeSippConfig({ accessAge: 57 }), 56), false);
+});
+
+test('SIPP drawdown defaults to age 57 when accessAge is not set', () => {
+  const config = { sipp: { enabled: true } };
+  assert.strictEqual(getSippDrawdownAllowed(config, 56), false);
+  assert.strictEqual(getSippDrawdownAllowed(config, 57), true);
+});
+
+test('SIPP drawdown not allowed when SIPP is disabled', () => {
+  assert.strictEqual(getSippDrawdownAllowed(makeSippConfig({ enabled: false }), 60), false);
 });

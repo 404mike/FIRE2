@@ -24,7 +24,7 @@
 
 import { getPensionIncome } from './pensionEngine.js';
 import { executeWithdrawal } from './withdrawalStrategy.js';
-import { projectYear } from './projectionUtils.js';
+import { projectYear, getIsaDrawdownAllowed, getSippDrawdownAllowed } from './projectionUtils.js';
 
 /**
  * Run the full projection from currentAge to endAge.
@@ -45,7 +45,6 @@ export function runProjection(config) {
   };
 
   const numYears = config.endAge - config.currentAge;
-  const sippAccessAge = config.sipp.accessAge || 57;
 
   for (let i = 0; i <= numYears; i++) {
     const age  = config.currentAge + i;
@@ -160,14 +159,10 @@ export function runProjection(config) {
       requiredSpending = config.retirementSpending * inflationFactor;
 
       // SIPP access constraint
-      const sippAccessAge = config.sipp.accessAge || 57;
-      const sippAccessAllowed = config.sipp.enabled && age >= sippAccessAge;
+      const sippAccessAllowed = getSippDrawdownAllowed(config, age);
 
       // ISA drawdown constraint
-      const isaDrawdownAge = config.isa.drawdownStartAge != null
-        ? config.isa.drawdownStartAge
-        : config.retirementAge;
-      const isaDrawdownAllowed = config.isa.enabled && age >= isaDrawdownAge;
+      const isaDrawdownAllowed = getIsaDrawdownAllowed(config, age);
 
       // Premium Bonds drawdown constraint
       const pbDrawdownAge = config.premiumBonds.drawdownStartAge !== null
@@ -254,7 +249,7 @@ export function runProjection(config) {
       balances.isa -= take;
       isaWithdrawn += take;
     }
-    if (override.sippCustomDrawdown && config.sipp.enabled && age >= sippAccessAge) {
+    if (override.sippCustomDrawdown && getSippDrawdownAllowed(config, age)) {
       const take = applyCustomDrawdown(balances.sipp, override.sippCustomDrawdown);
       balances.sipp -= take;
       sippWithdrawn += take;
