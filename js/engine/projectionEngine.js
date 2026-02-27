@@ -24,6 +24,7 @@
 
 import { getPensionIncome } from './pensionEngine.js';
 import { executeWithdrawal } from './withdrawalStrategy.js';
+import { projectYear } from './projectionUtils.js';
 
 /**
  * Run the full projection from currentAge to endAge.
@@ -57,16 +58,26 @@ export function runProjection(config) {
     const inflationFactor = Math.pow(1 + inflationRate, i);
 
     // ── Step 1: Apply growth to each pot ──────────────────────────────────
+    // Capture the pre-growth portfolio total first so that rate-based drawdown
+    // is calculated from the opening balance (not the post-growth balance).
+    // This enforces the invariant:
+    //   net change = openingBalance × (growthRate − drawdownRate)
+    const preGrowthPortfolio =
+      (config.isa.enabled          ? balances.isa          : 0) +
+      (config.sipp.enabled         ? balances.sipp         : 0) +
+      (config.premiumBonds.enabled ? balances.premiumBonds : 0) +
+      (config.cash.enabled         ? balances.cash         : 0);
+
     // Growth is applied unconditionally (independent of contribution status),
     // so balances continue to compound even after contributions have stopped.
     if (config.isa.enabled) {
-      balances.isa *= (1 + (config.isa.growthRate ?? 0) / 100);
+      balances.isa = projectYear(balances.isa, (config.isa.growthRate ?? 0) / 100);
     }
     if (config.sipp.enabled) {
-      balances.sipp *= (1 + (config.sipp.growthRate ?? 0) / 100);
+      balances.sipp = projectYear(balances.sipp, (config.sipp.growthRate ?? 0) / 100);
     }
     if (config.premiumBonds.enabled) {
-      balances.premiumBonds *= (1 + (config.premiumBonds.prizeRate ?? 0) / 100);
+      balances.premiumBonds = projectYear(balances.premiumBonds, (config.premiumBonds.prizeRate ?? 0) / 100);
       // Premium Bonds are capped at £50,000; any excess flows into cash
       const PB_CAP = 50000;
       if (balances.premiumBonds > PB_CAP) {
@@ -78,7 +89,7 @@ export function runProjection(config) {
       }
     }
     if (config.cash.enabled) {
-      balances.cash *= (1 + (config.cash.growthRate ?? 0) / 100);
+      balances.cash = projectYear(balances.cash, (config.cash.growthRate ?? 0) / 100);
     }
 
     // ── Step 2: Apply regular contributions (pre-retirement only) ─────────
@@ -168,9 +179,9 @@ export function runProjection(config) {
       const spendingGap = Math.max(0, requiredSpending - pensionIncome);
 
       // Rate-based drawdown: always withdraw at least drawdownRate × portfolio,
-      // so drawdown continues even once pension income covers spending needs.
-      const portfolioValue = balances.isa + balances.sipp + balances.premiumBonds + balances.cash;
-      const rateDrawdown = portfolioValue * drawdownRate;
+      // calculated from the pre-growth (opening) balance so that when
+      // growthRate > drawdownRate the portfolio grows at the net rate.
+      const rateDrawdown = preGrowthPortfolio * drawdownRate;
 
       // Effective withdrawal target: whichever is larger
       const gap = Math.max(spendingGap, rateDrawdown);
