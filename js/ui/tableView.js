@@ -4,6 +4,7 @@
 
 import { formatCurrency } from './helpers.js';
 import { setOverride } from '../state/store.js';
+import { openAccountOverrideModal, ACCOUNT_DEFS } from './accountOverrideModal.js';
 
 /**
  * Render the year-by-year projection table.
@@ -28,6 +29,23 @@ export function renderTableView(container, rows, config) {
 
   const ov = config.overrides || {};
 
+  // Build account override buttons toolbar
+  const accountButtons = ACCOUNT_DEFS.map(a => {
+    const hasOverrides = Object.values(ov).some(yr =>
+      (yr[a.lumpSumField]  && yr[a.lumpSumField]  !== 0) ||
+      (yr[a.drawdownField] && yr[a.drawdownField] !== 0) ||
+      (a.contributionField && yr[a.contributionField] != null) ||
+      (a.drawdownRateField && yr[a.drawdownRateField] != null && yr[a.drawdownRateField] !== 0)
+    );
+    return `
+      <button class="btn btn-sm btn-secondary acct-override-btn ${hasOverrides ? 'has-overrides' : ''}"
+              data-account="${a.key}"
+              title="Edit lump sum &amp; extra drawdown overrides for ${a.label}">
+        ${a.icon} ${a.label}${hasOverrides ? ' <span class="override-dot" title="Has overrides">●</span>' : ''}
+      </button>
+    `;
+  }).join('');
+
   const thead = `
     <thead>
       <tr class="thead-group">
@@ -37,8 +55,6 @@ export function renderTableView(container, rows, config) {
         <th colspan="4" class="group-header">Drawdown per Account</th>
         <th colspan="2" class="group-header">Totals</th>
         <th class="group-header">Shortfall</th>
-        <th colspan="4" class="group-header group-override" title="Enter lump sums to add money to an account this year">+ Lump Sums</th>
-        <th colspan="4" class="group-header group-override" title="Enter additional drawdown from an account this year">+ Extra Draw</th>
         <th class="group-header group-override">Note</th>
       </tr>
       <tr>
@@ -58,14 +74,6 @@ export function renderTableView(container, rows, config) {
         <th>Total Withdrawn £</th>
         <th>Total Income £</th>
         <th>Shortfall £</th>
-        <th title="Add a lump sum to ISA this year">ISA</th>
-        <th title="Add a lump sum to SIPP this year">SIPP</th>
-        <th title="Add a lump sum to Bonds this year">Bonds</th>
-        <th title="Add a lump sum to Cash this year">Cash</th>
-        <th title="Extra ISA drawdown override this year">ISA</th>
-        <th title="Extra SIPP drawdown override this year">SIPP</th>
-        <th title="Extra Bonds drawdown override this year">Bonds</th>
-        <th title="Extra Cash drawdown override this year">Cash</th>
         <th>Note</th>
       </tr>
     </thead>
@@ -85,9 +93,20 @@ export function renderTableView(container, rows, config) {
 
     const override = ov[row.year] || {};
 
+    // Show a dot indicator if any account overrides exist for this year
+    const yearHasOverride = ACCOUNT_DEFS.some(a =>
+      (override[a.lumpSumField]  && override[a.lumpSumField]  !== 0) ||
+      (override[a.drawdownField] && override[a.drawdownField] !== 0) ||
+      (a.contributionField && override[a.contributionField] != null) ||
+      (a.drawdownRateField && override[a.drawdownRateField] != null && override[a.drawdownRateField] !== 0)
+    );
+    const overrideIndicator = yearHasOverride
+      ? '<span class="row-override-dot" title="Has account overrides this year">●</span>'
+      : '';
+
     return `
       <tr class="${rowClass}" data-year="${row.year}">
-        <td>${row.year} / ${row.age}</td>
+        <td>${row.year} / ${row.age} ${overrideIndicator}</td>
         <td>${phase}</td>
         <td>${formatCurrency(row.isaBalance)}</td>
         <td>${formatCurrency(row.sippBalance)}</td>
@@ -103,20 +122,16 @@ export function renderTableView(container, rows, config) {
         <td class="${row.totalWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.totalWithdrawn > 0 ? formatCurrency(row.totalWithdrawn) : '—'}</td>
         <td class="${row.totalIncome > 0 ? 'num-positive' : 'num-zero'}">${row.totalIncome > 0 ? formatCurrency(row.totalIncome) : '—'}</td>
         <td class="${row.shortfall > 0 ? 'num-negative' : 'num-zero'}">${row.shortfall > 0 ? formatCurrency(row.shortfall) : '—'}</td>
-        <td><input class="override-input" type="number" data-year="${row.year}" data-field="isaLumpSum" value="${override.isaLumpSum || ''}" placeholder="0" /></td>
-        <td><input class="override-input" type="number" data-year="${row.year}" data-field="sippLumpSum" value="${override.sippLumpSum || ''}" placeholder="0" /></td>
-        <td><input class="override-input" type="number" data-year="${row.year}" data-field="premiumBondLumpSum" value="${override.premiumBondLumpSum || ''}" placeholder="0" /></td>
-        <td><input class="override-input" type="number" data-year="${row.year}" data-field="cashLumpSum" value="${override.cashLumpSum || ''}" placeholder="0" /></td>
-        <td><input class="override-input" type="number" data-year="${row.year}" data-field="isaCustomDrawdown" value="${override.isaCustomDrawdown || ''}" placeholder="0" /></td>
-        <td><input class="override-input" type="number" data-year="${row.year}" data-field="sippCustomDrawdown" value="${override.sippCustomDrawdown || ''}" placeholder="0" /></td>
-        <td><input class="override-input" type="number" data-year="${row.year}" data-field="premiumBondsCustomDrawdown" value="${override.premiumBondsCustomDrawdown || ''}" placeholder="0" /></td>
-        <td><input class="override-input" type="number" data-year="${row.year}" data-field="cashCustomDrawdown" value="${override.cashCustomDrawdown || ''}" placeholder="0" /></td>
         <td><input class="note-input" type="text" data-year="${row.year}" data-field="note" value="${override.note || ''}" placeholder="Note…" /></td>
       </tr>
     `;
   }).join('');
 
   container.innerHTML = `
+    <div class="table-toolbar">
+      <span class="table-toolbar-label">Account Overrides:</span>
+      ${accountButtons}
+    </div>
     <div class="table-scroll">
       <table class="year-table">
         ${thead}
@@ -125,15 +140,19 @@ export function renderTableView(container, rows, config) {
     </div>
   `;
 
-  // Attach override input listeners
-  container.querySelectorAll('.override-input, .note-input').forEach(input => {
+  // Account override buttons → open modal
+  container.querySelectorAll('.acct-override-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      openAccountOverrideModal(btn.dataset.account, rows, config);
+    });
+  });
+
+  // Note input listeners
+  container.querySelectorAll('.note-input').forEach(input => {
     input.addEventListener('change', () => {
       const year  = parseInt(input.dataset.year, 10);
       const field = input.dataset.field;
-      const value = input.type === 'number'
-        ? (input.value === '' ? 0 : parseFloat(input.value))
-        : input.value;
-      setOverride(year, { [field]: value });
+      setOverride(year, { [field]: input.value });
     });
   });
 }

@@ -541,12 +541,14 @@ header {
   gap: 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 1.5rem;
+  overflow: visible;
 }
 
 .tab-btn {
-  padding: 0.6rem 1rem;
+  padding: 0.75rem 1rem;
   font-size: 0.85rem;
   font-weight: 500;
+  line-height: 1.5;
   color: var(--text-muted);
   background: none;
   border: none;
@@ -555,6 +557,7 @@ header {
   font-family: var(--font);
   transition: color 0.15s, border-color 0.15s;
   margin-bottom: -1px;
+  white-space: nowrap;
 }
 
 .tab-btn:hover { color: var(--text); }
@@ -648,3 +651,142 @@ header {
 .status-dot-green { background: var(--success); }
 .status-dot-amber { background: var(--warning); }
 .status-dot-red   { background: var(--danger); }
+
+/* ── Table toolbar (account override buttons) ── */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.table-toolbar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  margin-right: 0.25rem;
+}
+
+.acct-override-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.acct-override-btn.has-overrides {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.override-dot {
+  color: var(--warning);
+  font-size: 0.65rem;
+  vertical-align: middle;
+}
+
+.row-override-dot {
+  color: var(--warning);
+  font-size: 0.55rem;
+  vertical-align: middle;
+  margin-left: 0.2rem;
+}
+
+/* ── Account override modal ─────────────────── */
+.acct-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.acct-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 680px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.15s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.acct-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.acct-modal-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.acct-modal-icon { font-size: 1.1rem; }
+
+.acct-modal-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 0.65rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.acct-modal-scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Reuse .year-table inside the modal */
+.acct-override-table {
+  min-width: 100%;
+}
+
+.acct-override-table .col-year { text-align: left; min-width: 110px; }
+.acct-override-table .col-num  { min-width: 110px; }
+
+.acct-override-table tr.has-override td:first-child {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+/* ── Wide modal variant (ISA/SIPP with extra columns) ── */
+.acct-modal-wide {
+  max-width: 860px;
+}
+
+/* Disabled override inputs (e.g. contribution during retirement) */
+.override-input:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: var(--surface-2);
+}

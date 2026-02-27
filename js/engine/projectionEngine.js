@@ -78,17 +78,28 @@ export function runProjection(config) {
     let isaContribution  = 0;
     let sippContribution = 0;
 
+    // Resolve year overrides early so they can be used in contribution logic
+    const override = config.overrides[year] || {};
+
     if (!isRetired) {
       if (config.isa.enabled) {
         const isaStop = config.isa.stopContributionAge;
-        if (!isaStop || age < isaStop) {
+        const hasIsaContribOverride = override.isaContributionOverride != null;
+        if (hasIsaContribOverride) {
+          isaContribution = override.isaContributionOverride;
+          balances.isa += isaContribution;
+        } else if (!isaStop || age < isaStop) {
           isaContribution = config.isa.annualContribution;
           balances.isa += isaContribution;
         }
       }
       if (config.sipp.enabled) {
         const sippStop = config.sipp.stopContributionAge;
-        if (!sippStop || age < sippStop) {
+        const hasSippContribOverride = override.sippContributionOverride != null;
+        if (hasSippContribOverride) {
+          sippContribution = override.sippContributionOverride;
+          balances.sipp += sippContribution;
+        } else if (!sippStop || age < sippStop) {
           sippContribution = config.sipp.annualContribution;
           balances.sipp += sippContribution;
         }
@@ -102,7 +113,6 @@ export function runProjection(config) {
     }
 
     // ── Step 3: Apply year overrides / lump sums ──────────────────────────
-    const override = config.overrides[year] || {};
     if (override.isaLumpSum)          { balances.isa          += override.isaLumpSum;          isaContribution  += override.isaLumpSum; }
     if (override.sippLumpSum)         { balances.sipp         += override.sippLumpSum;         sippContribution += override.sippLumpSum; }
     if (override.premiumBondLumpSum)  { balances.premiumBonds += override.premiumBondLumpSum; }
@@ -127,6 +137,11 @@ export function runProjection(config) {
         age >= config.drawdown.phase2StartAge
       ) {
         drawdownRate = config.drawdown.phase2Rate / 100;
+      }
+
+      // Per-year drawdown rate override (overrides phase rate for this year)
+      if (override.drawdownRateOverride != null && override.drawdownRateOverride !== 0) {
+        drawdownRate = override.drawdownRateOverride / 100;
       }
 
       // Required spending: user-configured retirement spending
