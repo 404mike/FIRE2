@@ -81,7 +81,8 @@ export function openAccountOverrideModal(accountKey, rows, config) {
       <th class="col-num">${account.label} Balance</th>
       ${hasContribCols
         ? `<th title="Override the annual contribution to this account for this year (0 = stop contributions)">Contribution (£/yr)</th>
-           <th title="Override the portfolio drawdown rate for this year">Drawdown Rate (%)</th>`
+           <th title="Override the portfolio drawdown rate for this year">Drawdown Rate (%)</th>
+           <th class="col-num" title="Annual drawdown amount based on the rate and current balance">Drawdown (£/yr)</th>`
         : ''}
       <th title="Lump sum added to this account this year">Lump Sum In (£)</th>
       <th title="Extra drawdown taken from this account this year">Extra Draw Out (£)</th>
@@ -131,6 +132,13 @@ export function openAccountOverrideModal(accountKey, rows, config) {
             value="${drawdownRateVal}" placeholder="${config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4}"
             ${row.phase === 'accumulate' ? 'disabled title="Drawdown rate only applies during retirement"' : ''} />
         </td>
+        <td class="col-num drawdown-amount-cell">${(() => {
+          if (row.phase !== 'retire') return '—';
+          const defaultRate = config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4;
+          const effectiveRate = (drawdownRateVal !== '' && drawdownRateVal !== 0)
+            ? drawdownRateVal : defaultRate;
+          return formatCurrency(effectiveRate / 100 * (row[account.balanceKey] || 0));
+        })()}</td>
       `;
     }
 
@@ -237,6 +245,17 @@ export function openAccountOverrideModal(accountKey, rows, config) {
         if (!tr) return;
         const balanceCell = tr.querySelector('.col-num');
         if (balanceCell) balanceCell.textContent = formatCurrency(row[account.balanceKey]);
+        if (account.drawdownRateField) {
+          const drawdownAmountCell = tr.querySelector('.drawdown-amount-cell');
+          if (drawdownAmountCell && row.phase === 'retire') {
+            const yearOverride = newConfig.overrides?.[row.year] || {};
+            const rateOverride = yearOverride[account.drawdownRateField];
+            const effectiveRate = (rateOverride != null && rateOverride !== 0)
+              ? rateOverride
+              : (newConfig.drawdown.rate ?? newConfig.drawdown.phase1Rate ?? 4);
+            drawdownAmountCell.textContent = formatCurrency(effectiveRate / 100 * (row[account.balanceKey] || 0));
+          }
+        }
       });
     });
   });

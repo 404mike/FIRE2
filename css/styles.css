@@ -796,7 +796,7 @@ header {
 
 /* ── Wide modal variant (ISA/SIPP with extra columns) ── */
 .acct-modal-wide {
-  max-width: 860px;
+  max-width: 1000px;
 }
 
 /* Disabled override inputs (e.g. contribution during retirement) */
