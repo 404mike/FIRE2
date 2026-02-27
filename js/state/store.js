@@ -17,6 +17,7 @@ export const DEFAULT_STATE = {
 
   // Spending
   retirementSpending: 35000,
+  inflationRate: 2.5,
 
   // UK State Pension Age
   statePensionAge: 67,

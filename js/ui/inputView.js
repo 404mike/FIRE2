@@ -52,6 +52,10 @@ function buildSidebarHTML(s) {
           <input type="number" id="retirementSpending" value="${s.retirementSpending}" min="0" step="500" />
         </div>
         <div class="field">
+          <label>Inflation Rate (%/yr)</label>
+          <input type="number" id="inflationRate" value="${s.inflationRate ?? 2.5}" min="0" max="15" step="0.1" />
+        </div>
+        <div class="field">
           <label>Default Drawdown Rate (%/yr)</label>
           <input type="number" id="drawdownRate" value="${s.drawdown.rate ?? s.drawdown.phase1Rate ?? 4}" min="0" max="20" step="0.1" />
         </div>
@@ -233,37 +237,7 @@ function buildSidebarHTML(s) {
       </div>
     </div>
 
-    <!-- Withdrawal Order -->
-    <div>
-      <div class="section-header" data-section="order">
-        <span>⚖️ Withdrawal Order</span>
-        <span class="toggle-icon">▾</span>
-      </div>
-      <div class="section-body" data-body="order">
-        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem;">
-          Drag to reorder. Funds drawn in this order during retirement.
-        </p>
-        ${buildWithdrawalOrderHTML(s.withdrawalOrder)}
-      </div>
-    </div>
   `;
-}
-
-function buildWithdrawalOrderHTML(order) {
-  const labels = {
-    premiumBonds: '🏆 Premium Bonds',
-    isa:          '📈 ISA',
-    sipp:         '🏦 SIPP',
-    cash:         '💵 Cash',
-  };
-  const items = order.map((key, i) => `
-    <li class="order-item" draggable="true" data-key="${key}" data-idx="${i}">
-      <span class="drag-handle">⠿</span>
-      <span>${labels[key] || key}</span>
-      <span style="margin-left:auto;font-size:0.7rem;color:var(--text-muted);">${i + 1}</span>
-    </li>
-  `).join('');
-  return `<ol class="order-list" id="withdrawalOrderList">${items}</ol>`;
 }
 
 // ── Event listeners ───────────────────────────────────────────────────────
@@ -285,6 +259,7 @@ function attachEventListeners(container) {
   bindNumber(container, 'endAge',            v => setState({ endAge: v }));
   bindNumber(container, 'statePensionAge',   v => setState({ statePensionAge: v }));
   bindNumber(container, 'retirementSpending',v => setState({ retirementSpending: v }));
+  bindNumber(container, 'inflationRate',     v => setState({ inflationRate: v }));
   bindNumber(container, 'drawdownRate',      v => setState({ drawdown: { rate: v } }));
 
   // ISA
@@ -329,9 +304,6 @@ function attachEventListeners(container) {
   // State Pension
   bindCheckbox(container, 'spEnabled',     v => setState({ statePension: { enabled: v } }));
   bindNumber(container,   'spAnnualIncome',v => setState({ statePension: { annualIncome: v } }));
-
-  // Withdrawal order drag-and-drop
-  initWithdrawalOrderDrag(container);
 }
 
 function bindNumber(container, id, fn) {
@@ -358,34 +330,4 @@ function bindCheckbox(container, id, fn) {
   const el = container.querySelector(`#${id}`);
   if (!el) return;
   el.addEventListener('change', () => fn(el.checked));
-}
-
-function initWithdrawalOrderDrag(container) {
-  const list = container.querySelector('#withdrawalOrderList');
-  if (!list) return;
-
-  let dragSrc = null;
-
-  list.querySelectorAll('.order-item').forEach(item => {
-    item.addEventListener('dragstart', e => {
-      dragSrc = item;
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    item.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    });
-    item.addEventListener('drop', e => {
-      e.preventDefault();
-      if (dragSrc === item) return;
-      // Re-order
-      const items = [...list.querySelectorAll('.order-item')];
-      const from = items.indexOf(dragSrc);
-      const to   = items.indexOf(item);
-      const order = items.map(i => i.dataset.key);
-      order.splice(from, 1);
-      order.splice(to, 0, dragSrc.dataset.key);
-      setState({ withdrawalOrder: order });
-    });
-  });
 }

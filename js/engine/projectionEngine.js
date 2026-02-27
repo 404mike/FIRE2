@@ -51,6 +51,10 @@ export function runProjection(config) {
     const isRetired = age >= config.retirementAge;
     const phase = isRetired ? 'retire' : 'accumulate';
 
+    // Cumulative inflation factor from the base year
+    const inflationRate   = (config.inflationRate ?? 2.5) / 100;
+    const inflationFactor = Math.pow(1 + inflationRate, i);
+
     // ── Step 1: Apply growth to each pot ──────────────────────────────────
     if (config.isa.enabled) {
       balances.isa *= (1 + config.isa.growthRate / 100);
@@ -138,8 +142,8 @@ export function runProjection(config) {
         drawdownRate = override.drawdownRateOverride / 100;
       }
 
-      // Required spending: user-configured retirement spending
-      requiredSpending = config.retirementSpending;
+      // Required spending: inflation-adjusted from today's money
+      requiredSpending = config.retirementSpending * inflationFactor;
 
       // SIPP access constraint
       const sippAccessAge = config.sipp.accessAge || 57;
@@ -229,6 +233,8 @@ export function runProjection(config) {
       premiumBondsBalance: Math.round(balances.premiumBonds),
       cashBalance:         Math.round(balances.cash),
       totalNetWorth:       Math.round(totalNetWorth),
+      realTotalNetWorth:   Math.round(totalNetWorth / inflationFactor),
+      inflationFactor:     Math.round(inflationFactor * 10000) / 10000,
       isaContribution:     Math.round(isaContribution),
       sippContribution:    Math.round(sippContribution),
       isaWithdrawn:        Math.round(isaWithdrawn),

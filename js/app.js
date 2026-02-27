@@ -18,6 +18,7 @@ import { runProjection }                   from './engine/projectionEngine.js';
 import { renderInputView }                 from './ui/inputView.js';
 import { renderSummaryView }               from './ui/summaryView.js';
 import { renderChart, destroyChart, toggleDataset } from './ui/chartView.js';
+import { renderOutcomeChart, destroyOutcomeChart } from './ui/outcomeChartView.js';
 import { renderTableView }                 from './ui/tableView.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
@@ -26,6 +27,8 @@ const sidebarEl    = document.getElementById('sidebar');
 const summaryEl    = document.getElementById('summary');
 const chartCanvas  = document.getElementById('mainChart');
 const legendEl     = document.getElementById('chartLegend');
+const outcomeCanvas = document.getElementById('outcomeChart');
+const outcomeLegendEl = document.getElementById('outcomeLegend');
 const tableEl      = document.getElementById('tableContainer');
 const shareBtnEl   = document.getElementById('shareBtn');
 const toastEl      = document.getElementById('toastContainer');
@@ -118,6 +121,12 @@ function _render() {
     }
   }
 
+  // Outcomes chart
+  if (outcomeCanvas && typeof Chart !== 'undefined') {
+    renderOutcomeChart(outcomeCanvas, config);
+    renderOutcomeLegend(outcomeLegendEl);
+  }
+
   // Table
   if (_activeTab === 'table' || tableEl) {
     renderTableView(tableEl, rows, config);
@@ -145,6 +154,12 @@ const LEGEND_ITEMS = [
   { key: 'sipp',         label: 'SIPP',            color: '#d97706' },
   { key: 'premiumBonds', label: 'Premium Bonds',   color: '#9333ea' },
   { key: 'cash',         label: 'Cash',            color: '#64748b' },
+];
+
+const OUTCOME_LEGEND_ITEMS = [
+  { label: 'P10 — Pessimistic (growth −3 pp)', color: 'rgba(37,99,235,0.5)', dashed: true },
+  { label: 'P50 — Typical', color: '#2563eb', dashed: false },
+  { label: 'P90 — Optimistic (growth +3 pp)', color: 'rgba(37,99,235,0.5)', dashed: true },
 ];
 
 function renderLegend(el) {
@@ -175,6 +190,16 @@ function renderLegend(el) {
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────
+
+function renderOutcomeLegend(el) {
+  if (!el || el.childElementCount > 0) return; // render once
+  el.innerHTML = OUTCOME_LEGEND_ITEMS.map(item => `
+    <div class="legend-item" style="cursor:default">
+      <div class="legend-dot${item.dashed ? ' legend-dot-dashed' : ''}" style="background:${item.color}"></div>
+      <span>${item.label}</span>
+    </div>
+  `).join('');
+}
 
 function showToast(message, duration = 3000) {
   if (!toastEl) return;
