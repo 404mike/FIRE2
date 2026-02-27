@@ -274,3 +274,186 @@ test('retirement: withdraws from pots in the configured order', () => {
   assert.strictEqual(rows[0].isaWithdrawn, 10000);
   assert.strictEqual(rows[0].cashWithdrawn, 0);
 });
+
+// ── Account-specific drawdown rate overrides ─────────────────────────────────
+
+test('sippDrawdownRateOverride draws specifically from SIPP from retirement age', () => {
+  // Problem statement case: SIPP set to draw 3% from retirement age (58).
+  // Without the fix the SIPP would only be drawn after higher-priority pots
+  // are exhausted (potentially age 82). With the fix sippWithdrawn > 0 in
+  // the very first retirement year.
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       0,      // ISA disabled by setting balance=0 and disabling below
+    growthRate:    0,
+    drawdownRate:  0,      // No global portfolio drawdown; only SIPP-specific draw
+    spending:      0,
+    currentAge:    58,
+    retirementAge: 58,
+    endAge:        60,
+  });
+  config.isa.enabled  = false;
+  config.sipp.enabled = true;
+  config.sipp.balance = 100000;
+  config.sipp.growthRate = 0;
+  config.sipp.accessAge  = 57;      // SIPP accessible from 57
+  config.withdrawalOrder = ['isa', 'sipp', 'premiumBonds', 'cash'];
+
+  // Apply 3% SIPP-specific drawdown to all three years
+  for (let yr = currentYear; yr <= currentYear + 2; yr++) {
+    config.overrides[yr] = { sippDrawdownRateOverride: 3 };
+  }
+
+  const rows = runProjection(config);
+
+  // Year 0 (age 58): SIPP should draw 3% = 3,000
+  assert.strictEqual(rows[0].sippWithdrawn, 3000);
+  // Year 1 (age 59): 3% of 97,000 = 2,910
+  assert.strictEqual(rows[1].sippWithdrawn, 2910);
+});
+
+test('sippDrawdownRateOverride: SIPP draws its specific rate even when ISA/PB are first in order', () => {
+  // Core bug scenario: ISA has a large balance AND is first in the withdrawal
+  // order. Without the fix the SIPP would not be drawn at all while ISA
+  // remains non-zero. With the fix sippWithdrawn > 0 in the first year.
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       200000,   // Large ISA balance
+    growthRate:    0,
+    drawdownRate:  0,        // No global drawdown
+    spending:      0,
+    currentAge:    58,
+    retirementAge: 58,
+    endAge:        59,
+  });
+  config.sipp.enabled   = true;
+  config.sipp.balance   = 100000;
+  config.sipp.growthRate = 0;
+  config.sipp.accessAge  = 57;
+  config.withdrawalOrder = ['isa', 'sipp', 'premiumBonds', 'cash'];
+  config.overrides[currentYear] = { sippDrawdownRateOverride: 3 };
+
+  const rows = runProjection(config);
+
+  // ISA has no rate override → ISA balance unchanged (0 drawn from ISA)
+  assert.strictEqual(rows[0].isaWithdrawn, 0);
+  // SIPP draws 3% = 3,000 regardless of withdrawal order
+  assert.strictEqual(rows[0].sippWithdrawn, 3000);
+  assert.strictEqual(rows[0].sippBalance, 97000);
+});
+
+test('sippDrawdownRateOverride is excluded from main portfolio withdrawal', () => {
+  // When a SIPP-specific rate is set, the SIPP should not also be drawn
+  // from by the main portfolio withdrawal strategy (no double-counting).
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       0,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      5000,   // Spending gap covered by SIPP draw
+    currentAge:    58,
+    retirementAge: 58,
+    endAge:        59,
+  });
+  config.isa.enabled     = false;
+  config.sipp.enabled    = true;
+  config.sipp.balance    = 200000;
+  config.sipp.growthRate = 0;
+  config.sipp.accessAge  = 57;
+  config.withdrawalOrder = ['isa', 'sipp', 'premiumBonds', 'cash'];
+  // 3% of 200,000 = 6,000 — more than covers the 5,000 spending gap
+  config.overrides[currentYear] = { sippDrawdownRateOverride: 3 };
+
+  const rows = runProjection(config);
+
+  // SIPP draws exactly 3% = 6,000 (not 5,000 spending gap + 6,000 rate draw)
+  assert.strictEqual(rows[0].sippWithdrawn, 6000);
+  assert.strictEqual(rows[0].sippBalance, 194000);
+  // Spending is 5,000 and SIPP drew 6,000 → no shortfall
+  assert.strictEqual(rows[0].shortfall, 0);
+});
+
+test('isaDrawdownRateOverride draws specifically from ISA at the configured rate', () => {
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       100000,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      0,
+    currentAge:    60,
+    retirementAge: 60,
+    endAge:        61,
+  });
+  config.overrides[currentYear] = { isaDrawdownRateOverride: 5 };
+
+  const rows = runProjection(config);
+
+  // ISA draws 5% = 5,000 specifically
+  assert.strictEqual(rows[0].isaWithdrawn, 5000);
+  assert.strictEqual(rows[0].isaBalance, 95000);
+});
+
+test('sippDrawdownRateOverride respects sippAccessAge (no draw before access age)', () => {
+  // If retirement starts before the SIPP access age, the SIPP-specific rate
+  // override should not draw from SIPP until the access age is reached.
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       0,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      0,
+    currentAge:    55,
+    retirementAge: 55,
+    endAge:        60,
+  });
+  config.isa.enabled     = false;
+  config.sipp.enabled    = true;
+  config.sipp.balance    = 100000;
+  config.sipp.growthRate = 0;
+  config.sipp.accessAge  = 57;   // SIPP not accessible before 57
+  config.withdrawalOrder = ['isa', 'sipp'];
+
+  // Apply 3% SIPP rate override to all years
+  for (let yr = currentYear; yr <= currentYear + 5; yr++) {
+    config.overrides[yr] = { sippDrawdownRateOverride: 3 };
+  }
+
+  const rows = runProjection(config);
+
+  // Age 55 (i=0) and 56 (i=1): SIPP not yet accessible — no draw
+  assert.strictEqual(rows[0].sippWithdrawn, 0, 'Age 55: SIPP should not draw before accessAge');
+  assert.strictEqual(rows[1].sippWithdrawn, 0, 'Age 56: SIPP should not draw before accessAge');
+  // Age 57 (i=2): SIPP accessible — draw begins
+  assert.ok(rows[2].sippWithdrawn > 0, 'Age 57: SIPP should start drawing at accessAge');
+});
+
+test('sippDrawdownRateOverride and global portfolio drawdown coexist correctly', () => {
+  // SIPP draws at its specific rate (3%) from SIPP specifically.
+  // Remaining portfolio gap comes from ISA (global 4% rate, excluding SIPP).
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       100000,   // ISA
+    growthRate:    0,
+    drawdownRate:  4,        // Global portfolio rate = 4%
+    spending:      0,
+    currentAge:    58,
+    retirementAge: 58,
+    endAge:        59,
+  });
+  config.sipp.enabled    = true;
+  config.sipp.balance    = 100000;
+  config.sipp.growthRate = 0;
+  config.sipp.accessAge  = 57;
+  config.withdrawalOrder = ['isa', 'sipp'];
+  config.overrides[currentYear] = { sippDrawdownRateOverride: 3 };
+
+  const rows = runProjection(config);
+
+  // SIPP draws 3% of its own balance = 3,000 (specific)
+  assert.strictEqual(rows[0].sippWithdrawn, 3000);
+  // Total portfolio (200,000) × 4% = 8,000. SIPP already drew 3,000.
+  // Adjusted gap = max(0, 8,000 − 3,000) = 5,000 drawn from ISA.
+  assert.strictEqual(rows[0].isaWithdrawn, 5000);
+  // Total withdrawn = 3,000 (SIPP) + 5,000 (ISA) = 8,000
+  assert.strictEqual(rows[0].totalWithdrawn, 8000);
+});
