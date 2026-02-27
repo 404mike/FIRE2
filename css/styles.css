@@ -805,3 +805,35 @@ header {
   cursor: not-allowed;
   background: var(--surface-2);
 }
+
+/* ── Rate setter bar (between description and table) ── */
+.acct-modal-rate-setter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+  font-size: 0.82rem;
+}
+
+.rate-setter-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.rate-setter-input {
+  width: 6rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.rate-setter-unit {
+  color: var(--text-muted);
+}
