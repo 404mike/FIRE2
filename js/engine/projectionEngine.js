@@ -130,16 +130,10 @@ export function runProjection(config) {
     const { total: pensionIncome, dbIncome, stateIncome } = getPensionIncome(config, age);
 
     if (isRetired) {
-      // Determine drawdown rate (may switch at phase2StartAge)
-      let drawdownRate = config.drawdown.phase1Rate / 100;
-      if (
-        config.drawdown.phase2Enabled &&
-        age >= config.drawdown.phase2StartAge
-      ) {
-        drawdownRate = config.drawdown.phase2Rate / 100;
-      }
+      // Determine drawdown rate (default from sidebar, overridable per year)
+      let drawdownRate = (config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4) / 100;
 
-      // Per-year drawdown rate override (overrides phase rate for this year)
+      // Per-year drawdown rate override (overrides main rate for this year)
       if (override.drawdownRateOverride != null && override.drawdownRateOverride !== 0) {
         drawdownRate = override.drawdownRateOverride / 100;
       }

@@ -51,6 +51,10 @@ function buildSidebarHTML(s) {
           <label>Retirement Spending (£/yr)</label>
           <input type="number" id="retirementSpending" value="${s.retirementSpending}" min="0" step="500" />
         </div>
+        <div class="field">
+          <label>Default Drawdown Rate (%/yr)</label>
+          <input type="number" id="drawdownRate" value="${s.drawdown.rate ?? s.drawdown.phase1Rate ?? 4}" min="0" max="20" step="0.1" />
+        </div>
       </div>
     </div>
 
@@ -229,34 +233,6 @@ function buildSidebarHTML(s) {
       </div>
     </div>
 
-    <!-- Drawdown Strategy -->
-    <div>
-      <div class="section-header" data-section="drawdown">
-        <span>📉 Drawdown Strategy</span>
-        <span class="toggle-icon">▾</span>
-      </div>
-      <div class="section-body" data-body="drawdown">
-        <div class="field">
-          <label>Phase 1 Drawdown Rate (% of portfolio/yr)</label>
-          <input type="number" id="phase1Rate" value="${s.drawdown.phase1Rate}" min="0" max="20" step="0.1" />
-        </div>
-        <div class="toggle-field">
-          <label for="phase2Enabled">Enable Phase 2 drawdown rate</label>
-          <label class="switch"><input type="checkbox" id="phase2Enabled" ${s.drawdown.phase2Enabled ? 'checked' : ''} /><span class="slider"></span></label>
-        </div>
-        <div class="field-row" id="phase2Fields" style="${s.drawdown.phase2Enabled ? '' : 'opacity:0.4;pointer-events:none;'}">
-          <div class="field">
-            <label>Phase 2 Start Age</label>
-            <input type="number" id="phase2StartAge" value="${s.drawdown.phase2StartAge}" min="60" max="90" />
-          </div>
-          <div class="field">
-            <label>Phase 2 Rate (%/yr)</label>
-            <input type="number" id="phase2Rate" value="${s.drawdown.phase2Rate}" min="0" max="20" step="0.1" />
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Withdrawal Order -->
     <div>
       <div class="section-header" data-section="order">
@@ -309,6 +285,7 @@ function attachEventListeners(container) {
   bindNumber(container, 'endAge',            v => setState({ endAge: v }));
   bindNumber(container, 'statePensionAge',   v => setState({ statePensionAge: v }));
   bindNumber(container, 'retirementSpending',v => setState({ retirementSpending: v }));
+  bindNumber(container, 'drawdownRate',      v => setState({ drawdown: { rate: v } }));
 
   // ISA
   bindCheckbox(container, 'isaEnabled',          v => setState({ isa: { enabled: v } }));
@@ -352,19 +329,6 @@ function attachEventListeners(container) {
   // State Pension
   bindCheckbox(container, 'spEnabled',     v => setState({ statePension: { enabled: v } }));
   bindNumber(container,   'spAnnualIncome',v => setState({ statePension: { annualIncome: v } }));
-
-  // Drawdown
-  bindNumber(container, 'phase1Rate',    v => setState({ drawdown: { phase1Rate: v } }));
-  bindCheckbox(container, 'phase2Enabled', v => {
-    setState({ drawdown: { phase2Enabled: v } });
-    const fields = container.querySelector('#phase2Fields');
-    if (fields) {
-      fields.style.opacity = v ? '1' : '0.4';
-      fields.style.pointerEvents = v ? '' : 'none';
-    }
-  });
-  bindNumber(container, 'phase2StartAge', v => setState({ drawdown: { phase2StartAge: v } }));
-  bindNumber(container, 'phase2Rate',     v => setState({ drawdown: { phase2Rate: v } }));
 
   // Withdrawal order drag-and-drop
   initWithdrawalOrderDrag(container);
