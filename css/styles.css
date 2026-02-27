@@ -444,6 +444,29 @@ header {
   background: var(--surface);
 }
 
+.year-table .group-header {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  border-right: 2px solid var(--border);
+}
+
+.year-table .group-override {
+  background: #fef3c7;
+  color: var(--warning);
+}
+
+.year-table .thead-group th:first-child,
+.year-table .thead-group th:nth-child(2) {
+  background: var(--surface-2);
+  border-right: none;
+}
+
 /* ── Phase badge ─────────────────────────────── */
 .badge {
   display: inline-block;

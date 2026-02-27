@@ -14,6 +14,7 @@
  *   isaWithdrawn, sippWithdrawn, premiumBondsWithdrawn, cashWithdrawn,
  *   totalWithdrawn,
  *   dbIncome, stateIncome, totalPensionIncome,
+ *   totalIncome,
  *   requiredSpending,
  *   spendingCovered,
  *   shortfall,
@@ -131,9 +132,6 @@ export function runProjection(config) {
       // Required spending: user-configured retirement spending
       requiredSpending = config.retirementSpending;
 
-      // Spending gap after pension income
-      const gap = Math.max(0, requiredSpending - pensionIncome);
-
       // SIPP access constraint
       const sippAccessAge = config.sipp.accessAge || 57;
       const sippAccessAllowed = config.sipp.enabled && age >= sippAccessAge;
@@ -143,6 +141,17 @@ export function runProjection(config) {
         ? config.premiumBonds.drawdownStartAge
         : config.retirementAge;
       const premiumBondsDrawdownAllowed = config.premiumBonds.enabled && age >= pbDrawdownAge;
+
+      // Spending gap after pension income
+      const spendingGap = Math.max(0, requiredSpending - pensionIncome);
+
+      // Rate-based drawdown: always withdraw at least drawdownRate × portfolio,
+      // so drawdown continues even once pension income covers spending needs.
+      const portfolioValue = balances.isa + balances.sipp + balances.premiumBonds + balances.cash;
+      const rateDrawdown = portfolioValue * drawdownRate;
+
+      // Effective withdrawal target: whichever is larger
+      const gap = Math.max(spendingGap, rateDrawdown);
 
       if (gap > 0) {
         const result = executeWithdrawal(
@@ -156,7 +165,11 @@ export function runProjection(config) {
         sippWithdrawn         = result.withdrawn.sipp;
         premiumBondsWithdrawn = result.withdrawn.premiumBonds;
         cashWithdrawn         = result.withdrawn.cash;
-        shortfall             = result.shortfall;
+        // Shortfall is spending-based: did total income cover spending?
+        const totalIncomeSoFar = pensionIncome
+          + result.withdrawn.isa + result.withdrawn.sipp
+          + result.withdrawn.premiumBonds + result.withdrawn.cash;
+        shortfall = Math.max(0, requiredSpending - totalIncomeSoFar);
       }
 
       // ── Per-pot custom drawdown overrides (additional voluntary withdrawals) ──
@@ -192,6 +205,8 @@ export function runProjection(config) {
     const totalWithdrawn =
       isaWithdrawn + sippWithdrawn + premiumBondsWithdrawn + cashWithdrawn;
 
+    const totalIncome = pensionIncome + totalWithdrawn;
+
     const totalNetWorth = Math.max(0,
       balances.isa + balances.sipp + balances.premiumBonds + balances.cash
     );
@@ -215,6 +230,7 @@ export function runProjection(config) {
       dbIncome:            Math.round(dbIncome),
       stateIncome:         Math.round(stateIncome),
       totalPensionIncome:  Math.round(pensionIncome),
+      totalIncome:         Math.round(totalIncome),
       requiredSpending:    Math.round(requiredSpending),
       spendingCovered:     Math.round(spendingCovered),
       shortfall:           Math.round(shortfall),

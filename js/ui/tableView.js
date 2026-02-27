@@ -30,6 +30,17 @@ export function renderTableView(container, rows, config) {
 
   const thead = `
     <thead>
+      <tr class="thead-group">
+        <th colspan="2"></th>
+        <th colspan="5" class="group-header">Balances</th>
+        <th colspan="2" class="group-header">Pension Income</th>
+        <th colspan="4" class="group-header">Drawdown per Account</th>
+        <th colspan="2" class="group-header">Totals</th>
+        <th class="group-header">Shortfall</th>
+        <th colspan="4" class="group-header group-override" title="Enter lump sums to add money to an account this year">+ Lump Sums</th>
+        <th colspan="4" class="group-header group-override" title="Enter additional drawdown from an account this year">+ Extra Draw</th>
+        <th class="group-header group-override">Note</th>
+      </tr>
       <tr>
         <th>Year / Age</th>
         <th>Phase</th>
@@ -40,16 +51,21 @@ export function renderTableView(container, rows, config) {
         <th>Net Worth £</th>
         <th>DB Income £</th>
         <th>SP Income £</th>
-        <th>Withdrawn £</th>
+        <th>ISA Drawn £</th>
+        <th>SIPP Drawn £</th>
+        <th>Bonds Drawn £</th>
+        <th>Cash Drawn £</th>
+        <th>Total Withdrawn £</th>
+        <th>Total Income £</th>
         <th>Shortfall £</th>
-        <th>ISA Lump</th>
-        <th>SIPP Lump</th>
-        <th>Bonds Lump</th>
-        <th>Cash Lump</th>
-        <th>ISA Draw</th>
-        <th>SIPP Draw</th>
-        <th>Bonds Draw</th>
-        <th>Cash Draw</th>
+        <th title="Add a lump sum to ISA this year">ISA</th>
+        <th title="Add a lump sum to SIPP this year">SIPP</th>
+        <th title="Add a lump sum to Bonds this year">Bonds</th>
+        <th title="Add a lump sum to Cash this year">Cash</th>
+        <th title="Extra ISA drawdown override this year">ISA</th>
+        <th title="Extra SIPP drawdown override this year">SIPP</th>
+        <th title="Extra Bonds drawdown override this year">Bonds</th>
+        <th title="Extra Cash drawdown override this year">Cash</th>
         <th>Note</th>
       </tr>
     </thead>
@@ -80,7 +96,12 @@ export function renderTableView(container, rows, config) {
         <td><strong>${formatCurrency(row.totalNetWorth)}</strong></td>
         <td class="${row.dbIncome > 0 ? 'num-positive' : 'num-zero'}">${row.dbIncome > 0 ? formatCurrency(row.dbIncome) : '—'}</td>
         <td class="${row.stateIncome > 0 ? 'num-positive' : 'num-zero'}">${row.stateIncome > 0 ? formatCurrency(row.stateIncome) : '—'}</td>
+        <td class="${row.isaWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.isaWithdrawn > 0 ? formatCurrency(row.isaWithdrawn) : '—'}</td>
+        <td class="${row.sippWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.sippWithdrawn > 0 ? formatCurrency(row.sippWithdrawn) : '—'}</td>
+        <td class="${row.premiumBondsWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.premiumBondsWithdrawn > 0 ? formatCurrency(row.premiumBondsWithdrawn) : '—'}</td>
+        <td class="${row.cashWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.cashWithdrawn > 0 ? formatCurrency(row.cashWithdrawn) : '—'}</td>
         <td class="${row.totalWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.totalWithdrawn > 0 ? formatCurrency(row.totalWithdrawn) : '—'}</td>
+        <td class="${row.totalIncome > 0 ? 'num-positive' : 'num-zero'}">${row.totalIncome > 0 ? formatCurrency(row.totalIncome) : '—'}</td>
         <td class="${row.shortfall > 0 ? 'num-negative' : 'num-zero'}">${row.shortfall > 0 ? formatCurrency(row.shortfall) : '—'}</td>
         <td><input class="override-input" type="number" data-year="${row.year}" data-field="isaLumpSum" value="${override.isaLumpSum || ''}" placeholder="0" /></td>
         <td><input class="override-input" type="number" data-year="${row.year}" data-field="sippLumpSum" value="${override.sippLumpSum || ''}" placeholder="0" /></td>
