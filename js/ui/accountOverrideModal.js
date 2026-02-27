@@ -19,6 +19,7 @@ export const ACCOUNT_DEFS = [
     lumpSumField:        'isaLumpSum',
     drawdownField:       'isaCustomDrawdown',
     balanceKey:          'isaBalance',
+    withdrawnKey:        'isaWithdrawn',
     contributionField:   'isaContributionOverride',
     contributionKey:     'isaContribution',
     drawdownRateField:   'isaDrawdownRateOverride',
@@ -31,6 +32,7 @@ export const ACCOUNT_DEFS = [
     lumpSumField:        'sippLumpSum',
     drawdownField:       'sippCustomDrawdown',
     balanceKey:          'sippBalance',
+    withdrawnKey:        'sippWithdrawn',
     contributionField:   'sippContributionOverride',
     contributionKey:     'sippContribution',
     drawdownRateField:   'sippDrawdownRateOverride',
@@ -43,6 +45,7 @@ export const ACCOUNT_DEFS = [
     lumpSumField:  'premiumBondLumpSum',
     drawdownField: 'premiumBondsCustomDrawdown',
     balanceKey:    'premiumBondsBalance',
+    withdrawnKey:  'premiumBondsWithdrawn',
   },
   {
     key:           'cash',
@@ -51,6 +54,7 @@ export const ACCOUNT_DEFS = [
     lumpSumField:  'cashLumpSum',
     drawdownField: 'cashCustomDrawdown',
     balanceKey:    'cashBalance',
+    withdrawnKey:  'cashWithdrawn',
   },
 ];
 
@@ -146,9 +150,7 @@ export function openAccountOverrideModal(accountKey, rows, config) {
         <td class="col-num drawdown-amount-cell">${(() => {
           if (!drawdownAllowed) return '—';
           if (drawdownRateVal === '') return '—';
-          const rate = parseFloat(drawdownRateVal);
-          if (isNaN(rate)) return '—';
-          return formatCurrency(rate / 100 * (row[account.balanceKey] || 0));
+          return formatCurrency(row[account.withdrawnKey] || 0);
         })()}</td>
       `;
     }
@@ -312,11 +314,14 @@ export function openAccountOverrideModal(accountKey, rows, config) {
         if (balanceCell) balanceCell.textContent = formatCurrency(row[account.balanceKey]);
         if (account.drawdownRateField) {
           const drawdownAmountCell = tr.querySelector('.drawdown-amount-cell');
-          if (drawdownAmountCell && row.phase === 'retire') {
+          const drawdownAllowed = account.drawdownAllowedFn
+            ? account.drawdownAllowedFn(newConfig, row.age)
+            : row.phase === 'retire';
+          if (drawdownAmountCell && drawdownAllowed) {
             const yearOverride = newConfig.overrides?.[row.year] || {};
             const rateOverride = yearOverride[account.drawdownRateField];
             if (rateOverride != null && rateOverride !== 0) {
-              drawdownAmountCell.textContent = formatCurrency(rateOverride / 100 * (row[account.balanceKey] || 0));
+              drawdownAmountCell.textContent = formatCurrency(row[account.withdrawnKey] || 0);
             } else {
               drawdownAmountCell.textContent = '—';
             }
