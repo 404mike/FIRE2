@@ -130,14 +130,14 @@ function buildSidebarHTML(s) {
             <label>Annual Contribution (£/yr)</label>
             <input type="number" id="sippAnnualContribution" value="${s.sipp.annualContribution}" min="0" step="500" />
           </div>
-          <div class="field">
-            <label>Access Age (NMPA)</label>
-            <input type="number" id="sippAccessAge" value="${s.sipp.accessAge}" min="50" max="70" />
-          </div>
         </div>
         <div class="field">
           <label>Stop Contributions at Age (blank = never)</label>
           <input type="number" id="sippStopContributionAge" value="${s.sipp.stopContributionAge ?? ''}" min="18" max="100" placeholder="Never" />
+        </div>
+        <div class="field">
+          <label>Drawdown Start Age (blank = NMPA / access age)</label>
+          <input type="number" id="sippDrawdownStartAge" value="${s.sipp.drawdownStartAge ?? ''}" min="18" max="100" placeholder="Same as access age (${s.sipp.accessAge ?? 57})" />
         </div>
         <button class="btn btn-sm btn-secondary btn-full acct-override-btn" data-account="sipp"
                 title="Edit lump sum &amp; extra drawdown overrides for SIPP">
@@ -305,8 +305,8 @@ function attachEventListeners(container) {
   bindNumber(container,   'sippBalance',            v => setState({ sipp: { balance: v } }));
   bindNumber(container,   'sippGrowthRate',         v => setState({ sipp: { growthRate: v } }));
   bindNumber(container,   'sippAnnualContribution', v => setState({ sipp: { annualContribution: v } }));
-  bindNumber(container,   'sippAccessAge',          v => setState({ sipp: { accessAge: v } }));
   bindNullableNumber(container, 'sippStopContributionAge', v => setState({ sipp: { stopContributionAge: v } }));
+  bindNullableNumber(container, 'sippDrawdownStartAge',    v => setState({ sipp: { drawdownStartAge: v } }));
 
   // Premium Bonds
   bindCheckbox(container, 'pbEnabled',          v => setState({ premiumBonds: { enabled: v } }));
