@@ -4,7 +4,7 @@
 
 import { formatCurrency } from './helpers.js';
 import { setOverride } from '../state/store.js';
-import { openAccountOverrideModal, ACCOUNT_DEFS } from './accountOverrideModal.js';
+import { ACCOUNT_DEFS } from './accountOverrideModal.js';
 
 /**
  * Render the year-by-year projection table.
@@ -28,23 +28,6 @@ export function renderTableView(container, rows, config) {
     : -1;
 
   const ov = config.overrides || {};
-
-  // Build account override buttons toolbar
-  const accountButtons = ACCOUNT_DEFS.map(a => {
-    const hasOverrides = Object.values(ov).some(yr =>
-      (yr[a.lumpSumField]  && yr[a.lumpSumField]  !== 0) ||
-      (yr[a.drawdownField] && yr[a.drawdownField] !== 0) ||
-      (a.contributionField && yr[a.contributionField] != null) ||
-      (a.drawdownRateField && yr[a.drawdownRateField] != null && yr[a.drawdownRateField] !== 0)
-    );
-    return `
-      <button class="btn btn-sm btn-secondary acct-override-btn ${hasOverrides ? 'has-overrides' : ''}"
-              data-account="${a.key}"
-              title="Edit lump sum &amp; extra drawdown overrides for ${a.label}">
-        ${a.icon} ${a.label}${hasOverrides ? ' <span class="override-dot" title="Has overrides">●</span>' : ''}
-      </button>
-    `;
-  }).join('');
 
   const thead = `
     <thead>
@@ -128,10 +111,6 @@ export function renderTableView(container, rows, config) {
   }).join('');
 
   container.innerHTML = `
-    <div class="table-toolbar">
-      <span class="table-toolbar-label">Account Overrides:</span>
-      ${accountButtons}
-    </div>
     <div class="table-scroll">
       <table class="year-table">
         ${thead}
@@ -139,13 +118,6 @@ export function renderTableView(container, rows, config) {
       </table>
     </div>
   `;
-
-  // Account override buttons → open modal
-  container.querySelectorAll('.acct-override-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      openAccountOverrideModal(btn.dataset.account, rows, config);
-    });
-  });
 
   // Note input listeners
   container.querySelectorAll('.note-input').forEach(input => {
