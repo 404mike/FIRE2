@@ -6,6 +6,8 @@
  */
 
 import { getState, setState } from '../state/store.js';
+import { openAccountOverrideModal } from './accountOverrideModal.js';
+import { runProjection } from '../engine/projectionEngine.js';
 
 /**
  * Render the full input sidebar into `container`.
@@ -91,6 +93,10 @@ function buildSidebarHTML(s) {
           <label>Stop Contributions at Age (blank = never)</label>
           <input type="number" id="isaStopContributionAge" value="${s.isa.stopContributionAge ?? ''}" min="18" max="100" placeholder="Never" />
         </div>
+        <button class="btn btn-sm btn-secondary btn-full acct-override-btn" data-account="isa"
+                title="Edit lump sum &amp; extra drawdown overrides for ISA">
+          ⚙ ISA Overrides…
+        </button>
       </div>
     </div>
 
@@ -129,6 +135,10 @@ function buildSidebarHTML(s) {
           <label>Stop Contributions at Age (blank = never)</label>
           <input type="number" id="sippStopContributionAge" value="${s.sipp.stopContributionAge ?? ''}" min="18" max="100" placeholder="Never" />
         </div>
+        <button class="btn btn-sm btn-secondary btn-full acct-override-btn" data-account="sipp"
+                title="Edit lump sum &amp; extra drawdown overrides for SIPP">
+          ⚙ SIPP Overrides…
+        </button>
       </div>
     </div>
 
@@ -157,6 +167,10 @@ function buildSidebarHTML(s) {
           <label>Drawdown Start Age (blank = retirement age)</label>
           <input type="number" id="pbDrawdownStartAge" value="${s.premiumBonds.drawdownStartAge ?? ''}" min="40" max="90" placeholder="Same as retirement age" />
         </div>
+        <button class="btn btn-sm btn-secondary btn-full acct-override-btn" data-account="premiumBonds"
+                title="Edit lump sum &amp; extra drawdown overrides for Premium Bonds">
+          ⚙ Premium Bonds Overrides…
+        </button>
       </div>
     </div>
 
@@ -189,6 +203,10 @@ function buildSidebarHTML(s) {
           <label>Stop Contributions at Age (blank = never)</label>
           <input type="number" id="cashStopContributionAge" value="${s.cash.stopContributionAge ?? ''}" min="18" max="100" placeholder="Never" />
         </div>
+        <button class="btn btn-sm btn-secondary btn-full acct-override-btn" data-account="cash"
+                title="Edit lump sum &amp; extra drawdown overrides for Cash">
+          ⚙ Cash Overrides…
+        </button>
       </div>
     </div>
 
@@ -250,6 +268,14 @@ function attachEventListeners(container) {
       const body = container.querySelector(`[data-body="${key}"]`);
       header.classList.toggle('collapsed');
       body.classList.toggle('collapsed');
+    });
+  });
+
+  // Account override buttons
+  container.querySelectorAll('.acct-override-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const config = getState();
+      openAccountOverrideModal(btn.dataset.account, runProjection(config), config);
     });
   });
 
