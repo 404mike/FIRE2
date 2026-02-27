@@ -41,6 +41,7 @@
       <!-- Tabs -->
       <div class="tabs">
         <button class="tab-btn active" data-tab="chart">📊 Chart</button>
+        <button class="tab-btn" data-tab="outcomes">📈 Outcomes</button>
         <button class="tab-btn" data-tab="table">📋 Year Table</button>
       </div>
 
@@ -52,6 +53,25 @@
             <canvas id="mainChart"></canvas>
           </div>
           <div class="chart-legend" id="chartLegend">
+            <!-- Populated by app.js -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Outcomes panel -->
+      <div class="tab-panel" id="panel-outcomes">
+        <div class="chart-card">
+          <div class="chart-title">Inflation-Adjusted Portfolio Outcomes</div>
+          <p class="outcome-info">
+            This chart shows inflation-adjusted portfolio outcomes under different growth assumptions.
+            The centre line is the typical outcome using your configured growth rates.
+            The shaded range shows pessimistic (P10: growth −3 pp) and optimistic (P90: growth +3 pp) scenarios.
+            All values shown in today's purchasing power (real terms).
+          </p>
+          <div class="chart-wrapper">
+            <canvas id="outcomeChart"></canvas>
+          </div>
+          <div class="chart-legend" id="outcomeLegend">
             <!-- Populated by app.js -->
           </div>
         </div>

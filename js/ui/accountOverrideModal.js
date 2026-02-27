@@ -126,7 +126,7 @@ export function openAccountOverrideModal(accountKey, rows, config) {
         <td>
           <input class="override-input rate-input" type="number" min="0" max="100" step="0.1"
             data-year="${row.year}" data-field="${account.drawdownRateField}"
-            value="${drawdownRateVal}" placeholder="—"
+            value="${drawdownRateVal}" placeholder="${config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4}"
             ${row.phase === 'accumulate' ? 'disabled title="Drawdown rate only applies during retirement"' : ''} />
         </td>
       `;
@@ -155,11 +155,11 @@ export function openAccountOverrideModal(accountKey, rows, config) {
 
   // Description text
   let descHTML = `Set lump sum contributions (<strong>In £</strong>) added to this account or extra
-    drawdown (<strong>Out £</strong>) taken from it each year.`;
+    drawdown (<strong>Out £</strong>) taken from it each year. Changes update the balance for that year and all subsequent years.`;
   if (hasContribCols) {
     descHTML += ` For accumulation years, override the regular <strong>Contribution (£/yr)</strong> (set 0 to
       stop contributions that year). For retirement years, set a <strong>Drawdown Rate (%)</strong> to override
-      the portfolio drawdown rate for that year.`;
+      the default drawdown rate (${config.drawdown.rate ?? config.drawdown.phase1Rate ?? 4}%) for that year.`;
   }
   descHTML += ' Changes apply immediately to the projection.';
 

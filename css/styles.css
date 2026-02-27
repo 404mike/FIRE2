@@ -598,7 +598,22 @@ header {
   .tabs { flex-wrap: wrap; }
 }
 
-/* ── Loading state ───────────────────────────── */
+/* ── Outcome chart info text ─────────────────── */
+.outcome-info {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 0.5rem 0 0.75rem;
+  line-height: 1.55;
+}
+
+.legend-dot-dashed {
+  width: 18px;
+  height: 2px;
+  border-radius: 0;
+  border-top: 2px dashed currentColor;
+  background: transparent !important;
+  align-self: center;
+}
 .spinner {
   width: 20px;
   height: 20px;

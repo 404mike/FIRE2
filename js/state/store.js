@@ -17,6 +17,7 @@ export const DEFAULT_STATE = {
 
   // Spending
   retirementSpending: 35000,
+  inflationRate: 2.5,
 
   // UK State Pension Age
   statePensionAge: 67,
@@ -69,14 +70,10 @@ export const DEFAULT_STATE = {
     // startAge derived from statePensionAge above
   },
 
-  // Drawdown strategy
+  // Drawdown
   drawdown: {
-    // Phase 1: from retirement until phase2Start
-    phase1Rate: 4,
-    // Phase 2: from a specific age (e.g. when state pension begins)
-    phase2Enabled: false,
-    phase2StartAge: 67,
-    phase2Rate: 3,
+    // Default drawdown rate applied to all retirement years
+    rate: 4,
   },
 
   // Withdrawal order (array of pot keys in priority order)
