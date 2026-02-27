@@ -178,13 +178,18 @@ export function runProjection(config) {
       // Spending gap after pension income
       const spendingGap = Math.max(0, requiredSpending - pensionIncome);
 
-      // Rate-based drawdown: always withdraw at least drawdownRate × portfolio,
+      // Rate-based drawdown: withdraw exactly drawdownRate × portfolio,
       // calculated from the pre-growth (opening) balance so that when
       // growthRate > drawdownRate the portfolio grows at the net rate.
       const rateDrawdown = preGrowthPortfolio * drawdownRate;
 
-      // Effective withdrawal target: whichever is larger
-      const gap = Math.max(spendingGap, rateDrawdown);
+      // Exactly one withdrawal strategy is active at a time:
+      //   • drawdownRate > 0 → percentage drawdown drives the withdrawal
+      //   • drawdownRate = 0 → spending gap drives the withdrawal
+      // Using both simultaneously would cause a double-withdrawal bug where
+      // the spending amount silently overrides the configured rate, draining
+      // the portfolio far faster than expected.
+      const gap = drawdownRate > 0 ? rateDrawdown : spendingGap;
 
       if (gap > 0) {
         const result = executeWithdrawal(

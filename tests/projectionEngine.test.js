@@ -121,6 +121,39 @@ test('problem statement example: £416,089 at 5% growth, 2% drawdown → £428,5
   assert.strictEqual(rows[0].isaBalance, 428572);
 });
 
+// ── Drawdown-rate vs spending: only one active at a time ─────────────────────
+
+test('drawdown rate wins when spending also configured (no double-withdrawal)', () => {
+  // 5% growth, 2% drawdown rate, £50,000 spending
+  // Expected: portfolio grows at net +3%; spending does NOT override the rate
+  // Buggy behaviour (Math.max): gap = max(50000, 6087) = 50000 → balance ~263,604
+  // Correct behaviour: gap = 6087 (rate) → balance = 304370 × 1.03 = 313,501
+  const rows = runProjection(makeConfig({ balance: 304370, growthRate: 5, drawdownRate: 2, spending: 50000 }));
+  // Net +3%: 304370 × 1.03 = 313501.1 → rounds to 313501
+  assert.strictEqual(rows[0].isaBalance, 313501);
+  // Only the 2% rate was withdrawn (not £50,000)
+  assert.strictEqual(rows[0].isaWithdrawn, Math.round(304370 * 0.02)); // 6087
+  // Shortfall correctly reflects the unmet spending
+  assert.ok(rows[0].shortfall > 0, 'expected shortfall when rate withdrawal < spending');
+});
+
+test('spending drives withdrawals when drawdown rate is zero', () => {
+  // drawdownRate = 0 → spending-based withdrawal is active
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 0, drawdownRate: 0, spending: 10000 }));
+  assert.strictEqual(rows[0].isaWithdrawn, 10000);
+  assert.strictEqual(rows[0].isaBalance, 90000);
+});
+
+test('null/undefined drawdown rate defaults to non-zero (rate strategy applies)', () => {
+  // When config.drawdown.rate is null, the engine defaults to 4%, so rate drives withdrawals
+  const config = makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 4, spending: 50000 });
+  // Ensure the spending does not override the 4% rate (gap = 4000 not 50000)
+  const rows = runProjection(config);
+  // 4% drawdown, 5% growth → net +1%: 100000 × 1.01 = 101000
+  assert.strictEqual(rows[0].isaBalance, 101000);
+  assert.strictEqual(rows[0].isaWithdrawn, Math.round(100000 * 0.04)); // 4000
+});
+
 // ── Accumulation phase ───────────────────────────────────────────────────────
 
 test('accumulation: annual contributions increase balance each year', () => {
