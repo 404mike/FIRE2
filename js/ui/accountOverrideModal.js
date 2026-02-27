@@ -7,7 +7,8 @@
  */
 
 import { formatCurrency } from './helpers.js';
-import { setOverride } from '../state/store.js';
+import { setOverride, subscribe, getState } from '../state/store.js';
+import { runProjection } from '../engine/projectionEngine.js';
 
 export const ACCOUNT_DEFS = [
   {
@@ -51,6 +52,7 @@ export const ACCOUNT_DEFS = [
 ];
 
 let _activeModal = null;
+let _unsubscribeModal = null;
 
 /**
  * Open the override modal for a specific account.
@@ -196,12 +198,16 @@ export function openAccountOverrideModal(accountKey, rows, config) {
   // Close button
   overlay.querySelector('.acct-modal-close').addEventListener('click', _closeActiveModal);
 
-  // Override input listeners
+  // Override input listeners — use 'input' for real-time updates as the user types
   overlay.querySelectorAll('.override-input:not([disabled])').forEach(input => {
-    input.addEventListener('change', () => {
+    input.addEventListener('input', () => {
       const year  = parseInt(input.dataset.year, 10);
       const field = input.dataset.field;
       const value = input.value === '' ? null : parseFloat(input.value);
+
+      // Skip update while user is mid-typing an incomplete number (e.g. "-" or "1.")
+      if (input.value !== '' && isNaN(value)) return;
+
       setOverride(year, { [field]: value });
 
       // Highlight row if any non-empty override is entered (including 0, which is meaningful)
@@ -209,6 +215,29 @@ export function openAccountOverrideModal(accountKey, rows, config) {
       const inputs = row.querySelectorAll('.override-input:not([disabled])');
       const any    = [...inputs].some(i => i.value !== '');
       row.classList.toggle('has-override', any);
+    });
+  });
+
+  // Subscribe to state changes so the balance column stays up-to-date
+  // while the modal is open and the user makes changes.
+  // Debounce via requestAnimationFrame (consistent with app.js) to avoid
+  // running the projection on every keystroke.
+  let _balanceUpdateScheduled = false;
+  _unsubscribeModal = subscribe(() => {
+    if (_balanceUpdateScheduled) return;
+    _balanceUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      _balanceUpdateScheduled = false;
+      const newConfig = getState();
+      const newRows   = runProjection(newConfig);
+      const tbody = overlay.querySelector('tbody');
+      if (!tbody) return;
+      newRows.forEach(row => {
+        const tr = tbody.querySelector(`tr[data-year="${row.year}"]`);
+        if (!tr) return;
+        const balanceCell = tr.querySelector('.col-num');
+        if (balanceCell) balanceCell.textContent = formatCurrency(row[account.balanceKey]);
+      });
     });
   });
 
@@ -227,6 +256,10 @@ function _closeActiveModal() {
     _activeModal.remove();
     _activeModal = null;
     document.removeEventListener('keydown', _handleEsc);
+  }
+  if (_unsubscribeModal) {
+    _unsubscribeModal();
+    _unsubscribeModal = null;
   }
 }
 
