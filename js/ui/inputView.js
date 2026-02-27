@@ -93,6 +93,10 @@ function buildSidebarHTML(s) {
           <label>Stop Contributions at Age (blank = never)</label>
           <input type="number" id="isaStopContributionAge" value="${s.isa.stopContributionAge ?? ''}" min="18" max="100" placeholder="Never" />
         </div>
+        <div class="field">
+          <label>Drawdown Start Age (blank = retirement age)</label>
+          <input type="number" id="isaDrawdownStartAge" value="${s.isa.drawdownStartAge ?? ''}" min="18" max="100" placeholder="Same as retirement age" />
+        </div>
         <button class="btn btn-sm btn-secondary btn-full acct-override-btn" data-account="isa"
                 title="Edit lump sum &amp; extra drawdown overrides for ISA">
           ⚙ ISA Overrides…
@@ -294,6 +298,7 @@ function attachEventListeners(container) {
   bindNumber(container,   'isaGrowthRate',        v => setState({ isa: { growthRate: v } }));
   bindNumber(container,   'isaAnnualContribution',v => setState({ isa: { annualContribution: v } }));
   bindNullableNumber(container, 'isaStopContributionAge', v => setState({ isa: { stopContributionAge: v } }));
+  bindNullableNumber(container, 'isaDrawdownStartAge',    v => setState({ isa: { drawdownStartAge: v } }));
 
   // SIPP
   bindCheckbox(container, 'sippEnabled',           v => setState({ sipp: { enabled: v } }));

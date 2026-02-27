@@ -29,6 +29,8 @@ export const DEFAULT_STATE = {
     growthRate: 5,
     annualContribution: 10000,
     stopContributionAge: null,
+    // Age from which drawdown begins (null = same as retirement)
+    drawdownStartAge: null,
   },
 
   sipp: {
