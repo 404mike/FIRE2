@@ -9,6 +9,7 @@
 import { formatCurrency } from './helpers.js';
 import { setOverride, subscribe, getState } from '../state/store.js';
 import { runProjection } from '../engine/projectionEngine.js';
+import { getIsaDrawdownAllowed, getSippDrawdownAllowed } from '../engine/projectionUtils.js';
 
 export const ACCOUNT_DEFS = [
   {
@@ -21,6 +22,7 @@ export const ACCOUNT_DEFS = [
     contributionField:   'isaContributionOverride',
     contributionKey:     'isaContribution',
     drawdownRateField:   'isaDrawdownRateOverride',
+    drawdownAllowedFn:   (config, age) => getIsaDrawdownAllowed(config, age),
   },
   {
     key:                 'sipp',
@@ -32,6 +34,7 @@ export const ACCOUNT_DEFS = [
     contributionField:   'sippContributionOverride',
     contributionKey:     'sippContribution',
     drawdownRateField:   'sippDrawdownRateOverride',
+    drawdownAllowedFn:   (config, age) => getSippDrawdownAllowed(config, age),
   },
   {
     key:           'premiumBonds',
@@ -119,6 +122,14 @@ export function openAccountOverrideModal(accountKey, rows, config) {
         ? defaultContrib
         : '—';
 
+      // Drawdown rate input is disabled unless the account is accessible at this age
+      const drawdownAllowed = account.drawdownAllowedFn
+        ? account.drawdownAllowedFn(config, row.age)
+        : row.phase === 'retire';
+      const rateDisabledAttr = !drawdownAllowed
+        ? 'disabled title="Drawdown rate only applies once this account is accessible"'
+        : '';
+
       extraCols = `
         <td>
           <input class="override-input contrib-input" type="number"
@@ -130,10 +141,10 @@ export function openAccountOverrideModal(accountKey, rows, config) {
           <input class="override-input rate-input" type="number" min="0" max="100" step="0.1"
             data-year="${row.year}" data-field="${account.drawdownRateField}"
             value="${drawdownRateVal}" placeholder="0"
-            ${row.phase === 'accumulate' ? 'disabled title="Drawdown rate only applies during retirement"' : ''} />
+            ${rateDisabledAttr} />
         </td>
         <td class="col-num drawdown-amount-cell">${(() => {
-          if (row.phase !== 'retire') return '—';
+          if (!drawdownAllowed) return '—';
           if (drawdownRateVal === '') return '—';
           const rate = parseFloat(drawdownRateVal);
           if (isNaN(rate)) return '—';
@@ -247,7 +258,10 @@ export function openAccountOverrideModal(accountKey, rows, config) {
 
       const tbody = overlay.querySelector('tbody');
       rows.forEach(row => {
-        if (row.phase !== 'retire') return;
+        const allowed = account.drawdownAllowedFn
+          ? account.drawdownAllowedFn(config, row.age)
+          : row.phase === 'retire';
+        if (!allowed) return;
         setOverride(row.year, { [account.drawdownRateField]: val });
         const tr = tbody?.querySelector(`tr[data-year="${row.year}"]`);
         if (!tr) return;
@@ -262,7 +276,10 @@ export function openAccountOverrideModal(accountKey, rows, config) {
       rateSetterInput.value = '';
       const tbody = overlay.querySelector('tbody');
       rows.forEach(row => {
-        if (row.phase !== 'retire') return;
+        const allowed = account.drawdownAllowedFn
+          ? account.drawdownAllowedFn(config, row.age)
+          : row.phase === 'retire';
+        if (!allowed) return;
         setOverride(row.year, { [account.drawdownRateField]: null });
         const tr = tbody?.querySelector(`tr[data-year="${row.year}"]`);
         if (!tr) return;

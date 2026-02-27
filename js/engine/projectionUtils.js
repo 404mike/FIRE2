@@ -27,3 +27,37 @@ export function projectYear(openingBalance, growthRate, drawdownRate = 0, lumpSu
   const closing    = openingBalance + growth - withdrawal + lumpSumIn - extraDrawOut;
   return Math.max(0, closing);
 }
+
+/**
+ * Whether ISA drawdown is allowed at a given age.
+ *
+ * ISA drawdown can be deferred beyond retirement via `drawdownStartAge`.
+ * When `drawdownStartAge` is null the ISA becomes available from `retirementAge`.
+ *
+ * @param {object} config  Full app state
+ * @param {number} age     Current age
+ * @returns {boolean}
+ */
+export function getIsaDrawdownAllowed(config, age) {
+  if (!config.isa.enabled) return false;
+  const startAge = config.isa.drawdownStartAge != null
+    ? config.isa.drawdownStartAge
+    : config.retirementAge;
+  return age >= startAge;
+}
+
+/**
+ * Whether SIPP drawdown is allowed at a given age.
+ *
+ * SIPP access is gated by the Normal Minimum Pension Age (NMPA), stored as
+ * `config.sipp.accessAge` (defaults to 57 for UK NMPA 2028).
+ *
+ * @param {object} config  Full app state
+ * @param {number} age     Current age
+ * @returns {boolean}
+ */
+export function getSippDrawdownAllowed(config, age) {
+  if (!config.sipp.enabled) return false;
+  const accessAge = config.sipp.accessAge || 57;
+  return age >= accessAge;
+}
