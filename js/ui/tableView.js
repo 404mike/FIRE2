@@ -37,6 +37,7 @@ export function renderTableView(container, rows, config) {
         <th colspan="2" class="group-header">Pension Income</th>
         <th colspan="4" class="group-header">Drawdown per Account</th>
         <th colspan="2" class="group-header">Totals</th>
+        <th class="group-header">Excess</th>
         <th class="group-header">Shortfall</th>
         <th class="group-header group-override">Note</th>
       </tr>
@@ -56,6 +57,7 @@ export function renderTableView(container, rows, config) {
         <th>Cash Drawn £</th>
         <th>Total Withdrawn £</th>
         <th>Total Income £</th>
+        <th>Excess Income £</th>
         <th>Shortfall £</th>
         <th>Note</th>
       </tr>
@@ -104,6 +106,7 @@ export function renderTableView(container, rows, config) {
         <td class="${row.cashWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.cashWithdrawn > 0 ? formatCurrency(row.cashWithdrawn) : '—'}</td>
         <td class="${row.totalWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.totalWithdrawn > 0 ? formatCurrency(row.totalWithdrawn) : '—'}</td>
         <td class="${row.totalIncome > 0 ? 'num-positive' : 'num-zero'}">${row.totalIncome > 0 ? formatCurrency(row.totalIncome) : '—'}</td>
+        <td class="${row.excessIncome > 0 ? 'num-warning' : 'num-zero'}">${row.excessIncome > 0 ? formatCurrency(row.excessIncome) : '—'}</td>
         <td class="${row.shortfall > 0 ? 'num-negative' : 'num-zero'}">${row.shortfall > 0 ? formatCurrency(row.shortfall) : '—'}</td>
         <td><input class="note-input" type="text" data-year="${row.year}" data-field="note" value="${override.note || ''}" placeholder="Note…" /></td>
       </tr>

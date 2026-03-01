@@ -262,22 +262,22 @@ export function runProjection(config) {
       return take;
     };
 
-    if (override.isaCustomDrawdown) {
+    if (override.isaCustomDrawdown && isaDrawdownAllowed) {
       const take = applyCustomDrawdown(balances.isa, override.isaCustomDrawdown);
       balances.isa -= take;
       isaWithdrawn += take;
     }
-    if (override.sippCustomDrawdown && getSippDrawdownAllowed(config, age)) {
+    if (override.sippCustomDrawdown && sippAccessAllowed) {
       const take = applyCustomDrawdown(balances.sipp, override.sippCustomDrawdown);
       balances.sipp -= take;
       sippWithdrawn += take;
     }
-    if (override.premiumBondsCustomDrawdown && config.premiumBonds.enabled) {
+    if (override.premiumBondsCustomDrawdown && premiumBondsDrawdownAllowed) {
       const take = applyCustomDrawdown(balances.premiumBonds, override.premiumBondsCustomDrawdown);
       balances.premiumBonds -= take;
       premiumBondsWithdrawn += take;
     }
-    if (override.cashCustomDrawdown && config.cash.enabled) {
+    if (override.cashCustomDrawdown && cashDrawdownAllowed) {
       const take = applyCustomDrawdown(balances.cash, override.cashCustomDrawdown);
       balances.cash -= take;
       cashWithdrawn += take;
@@ -291,6 +291,11 @@ export function runProjection(config) {
     const totalNetWorth = Math.max(0,
       balances.isa + balances.sipp + balances.premiumBonds + balances.cash
     );
+
+    const maxIncome = config.maxIncome ?? null;
+    const excessIncome = (maxIncome !== null && totalIncome > maxIncome)
+      ? Math.round(totalIncome - maxIncome)
+      : 0;
 
     rows.push({
       year,
@@ -318,6 +323,7 @@ export function runProjection(config) {
       requiredSpending:    Math.round(requiredSpending),
       spendingCovered:     Math.round(spendingCovered),
       shortfall:           Math.round(shortfall),
+      excessIncome,
       note:                override.note || '',
     });
   }

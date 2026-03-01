@@ -61,6 +61,10 @@ function buildSidebarHTML(s) {
           <label>Default Drawdown Rate (%/yr)</label>
           <input type="number" id="drawdownRate" value="${s.drawdown.rate ?? s.drawdown.phase1Rate ?? 4}" min="0" max="20" step="0.1" />
         </div>
+        <div class="field">
+          <label>Maximum Annual Income (£, blank = no limit)</label>
+          <input type="number" id="maxIncome" value="${s.maxIncome ?? ''}" min="0" step="1000" placeholder="No limit" />
+        </div>
       </div>
     </div>
 
@@ -295,6 +299,7 @@ function attachEventListeners(container) {
   bindNumber(container, 'retirementSpending',v => setState({ retirementSpending: v }));
   bindNumber(container, 'inflationRate',     v => setState({ inflationRate: v }));
   bindNumber(container, 'drawdownRate',      v => setState({ drawdown: { rate: v } }));
+  bindNullableNumber(container, 'maxIncome', v => setState({ maxIncome: v }));
 
   // ISA
   bindCheckbox(container, 'isaEnabled',          v => setState({ isa: { enabled: v } }));

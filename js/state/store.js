@@ -85,6 +85,10 @@ export const DEFAULT_STATE = {
   // Withdrawal order (array of pot keys in priority order)
   withdrawalOrder: ['premiumBonds', 'isa', 'sipp', 'cash'],
 
+  // Maximum annual income threshold (null = disabled). Years where totalIncome
+  // exceeds this value will be flagged with excessIncome in projection rows.
+  maxIncome: null,
+
   // Year overrides keyed by calendar year
   overrides: {},
 };

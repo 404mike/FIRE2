@@ -755,3 +755,125 @@ test('cash drawdown deferred when drawdownStartAge is after retirementAge', () =
   // Age 58: cash accessible — spending drawn from cash (first in order)
   assert.strictEqual(rows[3].cashWithdrawn, 10000, 'Age 58: cash draws from drawdownStartAge');
 });
+
+// ── Custom drawdown access guards ────────────────────────────────────────────
+
+test('cashCustomDrawdown is not applied before cash drawdownStartAge', () => {
+  // Cash drawdownStartAge is null → defaults to retirementAge (65).
+  // During accumulation (age 55), a cashCustomDrawdown override must not be
+  // applied and must not count as income.
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       0,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      0,
+    currentAge:    55,
+    retirementAge: 65,
+    endAge:        66,
+  });
+  config.isa.enabled    = false;
+  config.cash.enabled   = true;
+  config.cash.balance   = 40000;
+  config.cash.growthRate = 0;
+  config.cash.drawdownStartAge = null; // defaults to retirementAge (65)
+  config.overrides[currentYear] = { cashCustomDrawdown: 40000 };
+
+  const rows = runProjection(config);
+
+  // Age 55: cash not accessible (retirementAge is 65) — custom drawdown must not fire
+  assert.strictEqual(rows[0].cashWithdrawn, 0, 'Age 55: cashCustomDrawdown should not apply before drawdownStartAge');
+  assert.strictEqual(rows[0].totalIncome, 0, 'Age 55: totalIncome must be 0 (no drawdown allowed yet)');
+  // Balance should be unchanged (no drawdown applied)
+  assert.strictEqual(rows[0].cashBalance, 40000, 'Age 55: cash balance unchanged when drawdown not allowed');
+
+  // Age 65 (index 10): cash accessible — manual drawdown is applied in the first retirement year
+  // (The override is only set for currentYear so it won't fire again, but we verify the general rule.)
+  assert.strictEqual(rows[10].cashBalance, 40000, 'Age 65: cash balance should be intact from prior years (override only in year 0)');
+});
+
+test('isaCustomDrawdown is not applied before ISA drawdownStartAge', () => {
+  // ISA drawdownStartAge explicitly set to 60; current age is 55, retirementAge 65.
+  // A custom drawdown override must not be applied before the drawdownStartAge.
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       100000,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      0,
+    currentAge:    55,
+    retirementAge: 65,
+    endAge:        61,
+  });
+  config.isa.drawdownStartAge = 60;
+  // Block before drawdownStartAge (year 0 = age 55)
+  config.overrides[currentYear] = { isaCustomDrawdown: 10000 };
+  // Allow at drawdownStartAge (year 5 = age 60)
+  config.overrides[currentYear + 5] = { isaCustomDrawdown: 10000 };
+
+  const rows = runProjection(config);
+
+  // Age 55: ISA not accessible (drawdownStartAge is 60) — custom drawdown must not fire
+  assert.strictEqual(rows[0].isaWithdrawn, 0, 'Age 55: isaCustomDrawdown should not apply before drawdownStartAge');
+  assert.strictEqual(rows[0].totalIncome, 0, 'Age 55: totalIncome must be 0 (no drawdown allowed yet)');
+
+  // Age 60: ISA accessible — custom drawdown fires
+  assert.strictEqual(rows[5].isaWithdrawn, 10000, 'Age 60: isaCustomDrawdown applies at drawdownStartAge');
+  assert.strictEqual(rows[5].totalIncome, 10000, 'Age 60: totalIncome reflects the custom drawdown');
+});
+
+test('premiumBondsCustomDrawdown is not applied before PB drawdown age', () => {
+  // Premium bonds drawdownStartAge is null → defaults to retirementAge (65).
+  // A custom drawdown override must not fire during accumulation.
+  const currentYear = new Date().getFullYear();
+  const config = makeConfig({
+    balance:       0,
+    growthRate:    0,
+    drawdownRate:  0,
+    spending:      0,
+    currentAge:    55,
+    retirementAge: 65,
+    endAge:        66,
+  });
+  config.isa.enabled             = false;
+  config.premiumBonds.enabled    = true;
+  config.premiumBonds.balance    = 20000;
+  config.premiumBonds.prizeRate  = 0;
+  config.premiumBonds.drawdownStartAge = null; // defaults to retirementAge (65)
+  // Block before drawdown age (year 0 = age 55)
+  config.overrides[currentYear] = { premiumBondsCustomDrawdown: 20000 };
+  // Allow at retirementAge (year 10 = age 65)
+  config.overrides[currentYear + 10] = { premiumBondsCustomDrawdown: 5000 };
+
+  const rows = runProjection(config);
+
+  // Age 55: PB not accessible — custom drawdown must not fire
+  assert.strictEqual(rows[0].premiumBondsWithdrawn, 0, 'Age 55: premiumBondsCustomDrawdown should not apply before drawdown age');
+  assert.strictEqual(rows[0].totalIncome, 0, 'Age 55: totalIncome must be 0 (no drawdown allowed yet)');
+
+  // Age 65: PB accessible — custom drawdown fires
+  assert.strictEqual(rows[10].premiumBondsWithdrawn, 5000, 'Age 65: premiumBondsCustomDrawdown applies at drawdown age');
+});
+
+// ── maxIncome threshold ──────────────────────────────────────────────────────
+
+test('excessIncome is zero when maxIncome is not set', () => {
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 4 }));
+  assert.strictEqual(rows[0].excessIncome, 0, 'excessIncome should be 0 when maxIncome is null');
+});
+
+test('excessIncome is zero when totalIncome is below maxIncome', () => {
+  const config = makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 4 });
+  config.maxIncome = 10000;
+  const rows = runProjection(config);
+  // totalIncome = 4% × 100000 = 4000 < 10000
+  assert.strictEqual(rows[0].excessIncome, 0, 'excessIncome should be 0 when income is below the limit');
+});
+
+test('excessIncome reflects amount above maxIncome threshold', () => {
+  const config = makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 4 });
+  config.maxIncome = 2000;
+  const rows = runProjection(config);
+  // totalIncome = 4% × 100000 = 4000; maxIncome = 2000 → excess = 2000
+  assert.strictEqual(rows[0].excessIncome, 2000, 'excessIncome should equal totalIncome − maxIncome');
+});

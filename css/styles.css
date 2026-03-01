@@ -398,6 +398,7 @@ header {
 .year-table .num-positive { color: var(--success); }
 .year-table .num-negative { color: var(--danger); }
 .year-table .num-zero { color: var(--text-muted); }
+.year-table .num-warning { color: var(--warning); font-weight: 600; }
 
 /* Editable override cells */
 .override-input {
