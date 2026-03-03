@@ -25,14 +25,18 @@
 import { getPensionIncome } from './pensionEngine.js';
 import { executeWithdrawal } from './withdrawalStrategy.js';
 import { projectYear, getIsaDrawdownAllowed, getSippDrawdownAllowed, getCashDrawdownAllowed } from './projectionUtils.js';
+import { validateYearInvariants } from './invariants.js';
 
 /**
  * Run the full projection from currentAge to endAge.
  *
  * @param {object} config  Full app state
+ * @param {object} [opts]
+ * @param {boolean} [opts.debug=false]  When true, each row includes a `_debug` payload
+ *   with per-account ledger data and invariant-pass confirmation.
  * @returns {object[]}     Array of yearly projection rows
  */
-export function runProjection(config) {
+export function runProjection(config, { debug = false } = {}) {
   const currentYear = new Date().getFullYear();
   const rows = [];
 
@@ -56,6 +60,14 @@ export function runProjection(config) {
     const inflationRate   = (config.inflationRate ?? 2.5) / 100;
     const inflationFactor = Math.pow(1 + inflationRate, i);
 
+    // Per-account ledger tracking (used for invariant validation and debug output)
+    const openingBals = { ...balances };
+    const growthAmt   = { isa: 0, sipp: 0, premiumBonds: 0, cash: 0 };
+    const inflowsLed  = { isa: 0, sipp: 0, premiumBonds: 0, cash: 0 };
+    const outflowsLed = { isa: 0, sipp: 0, premiumBonds: 0, cash: 0 };
+    const xfersIn     = { isa: 0, sipp: 0, premiumBonds: 0, cash: 0 };
+    const xfersOut    = { isa: 0, sipp: 0, premiumBonds: 0, cash: 0 };
+
     // ── Step 1: Apply growth to each pot ──────────────────────────────────
     // Capture the pre-growth portfolio total first so that rate-based drawdown
     // is calculated from the opening balance (not the post-growth balance).
@@ -70,25 +82,25 @@ export function runProjection(config) {
     // Growth is applied unconditionally (independent of contribution status),
     // so balances continue to compound even after contributions have stopped.
     if (config.isa.enabled) {
+      const prev = balances.isa;
       balances.isa = projectYear(balances.isa, (config.isa.growthRate ?? 0) / 100);
+      growthAmt.isa = balances.isa - prev;
     }
     if (config.sipp.enabled) {
+      const prev = balances.sipp;
       balances.sipp = projectYear(balances.sipp, (config.sipp.growthRate ?? 0) / 100);
+      growthAmt.sipp = balances.sipp - prev;
     }
     if (config.premiumBonds.enabled) {
+      const prev = balances.premiumBonds;
       balances.premiumBonds = projectYear(balances.premiumBonds, (config.premiumBonds.prizeRate ?? 0) / 100);
-      // Premium Bonds are capped at £50,000; any excess flows into cash
-      const PB_CAP = 50000;
-      if (balances.premiumBonds > PB_CAP) {
-        const excess = balances.premiumBonds - PB_CAP;
-        balances.premiumBonds = PB_CAP;
-        if (config.cash.enabled) {
-          balances.cash += excess;
-        }
-      }
+      growthAmt.premiumBonds = balances.premiumBonds - prev;
+      // PB cap is enforced in Step 3b (after all inflows including lump sums)
     }
     if (config.cash.enabled) {
+      const prev = balances.cash;
       balances.cash = projectYear(balances.cash, (config.cash.growthRate ?? 0) / 100);
+      growthAmt.cash = balances.cash - prev;
     }
 
     // ── Step 2: Apply regular contributions (pre-retirement only) ─────────
@@ -110,6 +122,7 @@ export function runProjection(config) {
           isaContribution = config.isa.annualContribution;
           balances.isa += isaContribution;
         }
+        inflowsLed.isa += isaContribution;
       }
       if (config.sipp.enabled) {
         const sippStop = config.sipp.stopContributionAge;
@@ -121,6 +134,7 @@ export function runProjection(config) {
           sippContribution = config.sipp.annualContribution;
           balances.sipp += sippContribution;
         }
+        inflowsLed.sipp += sippContribution;
       }
       if (config.cash.enabled) {
         const cashStop = config.cash.stopContributionAge;
@@ -132,14 +146,29 @@ export function runProjection(config) {
           cashContribution = config.cash.annualContribution;
           balances.cash += cashContribution;
         }
+        inflowsLed.cash += cashContribution;
       }
     }
 
     // ── Step 3: Apply year overrides / lump sums ──────────────────────────
-    if (override.isaLumpSum)          { balances.isa          += override.isaLumpSum;          isaContribution  += override.isaLumpSum; }
-    if (override.sippLumpSum)         { balances.sipp         += override.sippLumpSum;         sippContribution += override.sippLumpSum; }
-    if (override.premiumBondLumpSum)  { balances.premiumBonds += override.premiumBondLumpSum; }
-    if (override.cashLumpSum)         { balances.cash         += override.cashLumpSum;         cashContribution += override.cashLumpSum; }
+    if (override.isaLumpSum)          { balances.isa          += override.isaLumpSum;          isaContribution  += override.isaLumpSum;  inflowsLed.isa          += override.isaLumpSum; }
+    if (override.sippLumpSum)         { balances.sipp         += override.sippLumpSum;         sippContribution += override.sippLumpSum; inflowsLed.sipp         += override.sippLumpSum; }
+    if (override.premiumBondLumpSum)  { balances.premiumBonds += override.premiumBondLumpSum;                                            inflowsLed.premiumBonds += override.premiumBondLumpSum; }
+    if (override.cashLumpSum)         { balances.cash         += override.cashLumpSum;          cashContribution += override.cashLumpSum; inflowsLed.cash         += override.cashLumpSum; }
+
+    // ── Step 3b: Premium Bonds cap enforcement (after all inflows) ─────────
+    // The £50,000 cap must be applied after every inflow (growth AND lump sums)
+    // so that an override that pushes PB above the cap is correctly handled.
+    const PB_CAP = 50000;
+    if (config.premiumBonds.enabled && balances.premiumBonds > PB_CAP) {
+      const excess = balances.premiumBonds - PB_CAP;
+      balances.premiumBonds = PB_CAP;
+      xfersOut.premiumBonds += excess;
+      if (config.cash.enabled) {
+        balances.cash += excess;
+        xfersIn.cash  += excess;
+      }
+    }
 
     // ── Step 4: Retirement withdrawals ────────────────────────────────────
     let isaWithdrawn          = 0;
@@ -207,18 +236,21 @@ export function runProjection(config) {
         const take = Math.min(Math.max(0, balances.sipp), balances.sipp * rate);
         balances.sipp -= take;
         sippWithdrawn += take;
+        outflowsLed.sipp += take;
       }
       if (override.isaDrawdownRateOverride != null && isaDrawdownAllowed) {
         const rate = override.isaDrawdownRateOverride / 100;
         const take = Math.min(Math.max(0, balances.isa), balances.isa * rate);
         balances.isa -= take;
         isaWithdrawn += take;
+        outflowsLed.isa += take;
       }
       if (override.cashDrawdownRateOverride != null && cashDrawdownAllowed) {
         const rate = override.cashDrawdownRateOverride / 100;
         const take = Math.min(Math.max(0, balances.cash), balances.cash * rate);
         balances.cash -= take;
         cashWithdrawn += take;
+        outflowsLed.cash += take;
       }
 
       // Reduce the main gap by what was already drawn via account-specific rates,
@@ -244,6 +276,10 @@ export function runProjection(config) {
         sippWithdrawn         += result.withdrawn.sipp;
         premiumBondsWithdrawn += result.withdrawn.premiumBonds;
         cashWithdrawn         += result.withdrawn.cash;
+        outflowsLed.isa          += result.withdrawn.isa;
+        outflowsLed.sipp         += result.withdrawn.sipp;
+        outflowsLed.premiumBonds += result.withdrawn.premiumBonds;
+        outflowsLed.cash         += result.withdrawn.cash;
       }
 
       // Shortfall is spending-based: did total income (pension + all withdrawals) cover spending?
@@ -266,21 +302,34 @@ export function runProjection(config) {
       const take = applyCustomDrawdown(balances.isa, override.isaCustomDrawdown);
       balances.isa -= take;
       isaWithdrawn += take;
+      outflowsLed.isa += take;
     }
     if (override.sippCustomDrawdown && sippAccessAllowed) {
       const take = applyCustomDrawdown(balances.sipp, override.sippCustomDrawdown);
       balances.sipp -= take;
       sippWithdrawn += take;
+      outflowsLed.sipp += take;
     }
     if (override.premiumBondsCustomDrawdown && premiumBondsDrawdownAllowed) {
       const take = applyCustomDrawdown(balances.premiumBonds, override.premiumBondsCustomDrawdown);
       balances.premiumBonds -= take;
       premiumBondsWithdrawn += take;
+      outflowsLed.premiumBonds += take;
     }
     if (override.cashCustomDrawdown && cashDrawdownAllowed) {
       const take = applyCustomDrawdown(balances.cash, override.cashCustomDrawdown);
       balances.cash -= take;
       cashWithdrawn += take;
+      outflowsLed.cash += take;
+    }
+
+    // Recalculate shortfall/spendingCovered after custom drawdowns so that
+    // extra voluntary withdrawals are counted against spending need.
+    if (inDrawdownPhase) {
+      const totalIncomeFinal = pensionIncome
+        + isaWithdrawn + sippWithdrawn + premiumBondsWithdrawn + cashWithdrawn;
+      shortfall       = Math.max(0, requiredSpending - totalIncomeFinal);
+      spendingCovered = requiredSpending - shortfall;
     }
 
     const totalWithdrawn =
@@ -297,7 +346,47 @@ export function runProjection(config) {
       ? Math.round(totalIncome - maxIncome)
       : 0;
 
-    rows.push({
+    // ── Invariant validation ───────────────────────────────────────────────
+    // Build per-account ledger and validate hard invariants. Throws if any
+    // invariant is violated, making the year/account immediately identifiable.
+    const accounts = {
+      isa: {
+        opening: openingBals.isa, growth: growthAmt.isa,
+        inflows: inflowsLed.isa,  outflows: outflowsLed.isa,
+        transfersIn: xfersIn.isa, transfersOut: xfersOut.isa,
+        closing: balances.isa,    reportedWithdrawn: isaWithdrawn,
+      },
+      sipp: {
+        opening: openingBals.sipp, growth: growthAmt.sipp,
+        inflows: inflowsLed.sipp,  outflows: outflowsLed.sipp,
+        transfersIn: xfersIn.sipp, transfersOut: xfersOut.sipp,
+        closing: balances.sipp,    reportedWithdrawn: sippWithdrawn,
+      },
+      premiumBonds: {
+        opening: openingBals.premiumBonds, growth: growthAmt.premiumBonds,
+        inflows: inflowsLed.premiumBonds,  outflows: outflowsLed.premiumBonds,
+        transfersIn: xfersIn.premiumBonds, transfersOut: xfersOut.premiumBonds,
+        closing: balances.premiumBonds,    reportedWithdrawn: premiumBondsWithdrawn,
+      },
+      cash: {
+        opening: openingBals.cash, growth: growthAmt.cash,
+        inflows: inflowsLed.cash,  outflows: outflowsLed.cash,
+        transfersIn: xfersIn.cash, transfersOut: xfersOut.cash,
+        closing: balances.cash,    reportedWithdrawn: cashWithdrawn,
+      },
+    };
+
+    validateYearInvariants({
+      accounts,
+      netWorth: totalNetWorth,
+      income: pensionIncome,
+      spendNeed: requiredSpending,
+      shortfall,
+      year,
+      age,
+    });
+
+    const row = {
       year,
       age,
       phase,
@@ -325,7 +414,13 @@ export function runProjection(config) {
       shortfall:           Math.round(shortfall),
       excessIncome,
       note:                override.note || '',
-    });
+    };
+
+    if (debug) {
+      row._debug = { accounts, invariantsPassed: true };
+    }
+
+    rows.push(row);
   }
 
   return rows;
