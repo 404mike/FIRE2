@@ -417,7 +417,42 @@ export function runProjection(config, { debug = false } = {}) {
     };
 
     if (debug) {
-      row._debug = { accounts, invariantsPassed: true };
+      row._debug = {
+        accounts,
+        invariantsPassed: true,
+
+        isaOpening:            Math.round(openingBals.isa),
+        isaGrowth:             Math.round(growthAmt.isa * 100) / 100,
+        isaInflows:            Math.round(inflowsLed.isa),
+        isaOutflows:           Math.round(outflowsLed.isa),
+        isaWithdrawn:          Math.round(isaWithdrawn),
+        isaBalance:            Math.round(balances.isa),
+
+        sippOpening:           Math.round(openingBals.sipp),
+        sippGrowth:            Math.round(growthAmt.sipp * 100) / 100,
+        sippInflows:           Math.round(inflowsLed.sipp),
+        sippOutflows:          Math.round(outflowsLed.sipp),
+        sippWithdrawn:         Math.round(sippWithdrawn),
+        sippBalance:           Math.round(balances.sipp),
+
+        premiumBondsOpening:   Math.round(openingBals.premiumBonds),
+        premiumBondsGrowth:    Math.round(growthAmt.premiumBonds * 100) / 100,
+        premiumBondsInflows:   Math.round(inflowsLed.premiumBonds),
+        premiumBondsOutflows:  Math.round(outflowsLed.premiumBonds),
+        premiumBondsWithdrawn: Math.round(premiumBondsWithdrawn),
+        premiumBondsBalance:   Math.round(balances.premiumBonds),
+
+        cashOpening:           Math.round(openingBals.cash),
+        cashGrowth:            Math.round(growthAmt.cash * 100) / 100,
+        cashInflows:           Math.round(inflowsLed.cash),
+        cashOutflows:          Math.round(outflowsLed.cash),
+        cashWithdrawn:         Math.round(cashWithdrawn),
+        cashBalance:           Math.round(balances.cash),
+
+        dbIncome:              Math.round(dbIncome),
+        stateIncome:           Math.round(stateIncome),
+        totalPensionIncome:    Math.round(pensionIncome),
+      };
     }
 
     rows.push(row);

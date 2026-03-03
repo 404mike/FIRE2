@@ -873,3 +873,98 @@ test('excessIncome reflects amount above maxIncome threshold', () => {
   // totalIncome = 4% × 100000 = 4000; maxIncome = 2000 → excess = 2000
   assert.strictEqual(rows[0].excessIncome, 2000, 'excessIncome should equal totalIncome − maxIncome');
 });
+
+// ── Debug mode ───────────────────────────────────────────────────────────────
+
+test('debug mode: _debug is absent when debug=false (default)', () => {
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 2 }));
+  assert.strictEqual(rows[0]._debug, undefined, '_debug must not be present in normal mode');
+});
+
+test('debug mode: _debug is present when debug=true', () => {
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 2 }), { debug: true });
+  assert.ok(rows[0]._debug !== undefined, '_debug must be present in debug mode');
+});
+
+test('debug mode: flat isa ledger fields are correct', () => {
+  // 5% growth on 100000 = 5000 growth; 2% drawdown on 100000 = 2000 withdrawn
+  // closing balance = 100000 × (1 + 0.05 − 0.02) = 103000
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 2 }), { debug: true });
+  const d = rows[0]._debug;
+  assert.strictEqual(d.isaOpening,   100000, 'isaOpening should be the opening ISA balance');
+  assert.strictEqual(d.isaGrowth,     5000,  'isaGrowth should be 5% of opening balance');
+  assert.strictEqual(d.isaInflows,       0,  'isaInflows should be 0 (no contributions in retirement)');
+  assert.strictEqual(d.isaOutflows,   2000,  'isaOutflows should equal amount withdrawn');
+  assert.strictEqual(d.isaWithdrawn,  2000,  'isaWithdrawn should match row.isaWithdrawn');
+  assert.strictEqual(d.isaBalance,  103000,  'isaBalance should match row.isaBalance');
+});
+
+test('debug mode: flat sipp ledger fields are correct', () => {
+  const config = makeConfig({ balance: 0, growthRate: 0, drawdownRate: 0 });
+  config.sipp = { enabled: true, balance: 80000, growthRate: 3, annualContribution: 0,
+                  accessAge: 57, stopContributionAge: null, drawdownStartAge: null };
+  // ISA disabled, SIPP only; drawdownRate 0 means no withdrawal
+  config.isa = { ...config.isa, enabled: false };
+  config.drawdown = { rate: 0 };
+  const rows = runProjection(config, { debug: true });
+  const d = rows[0]._debug;
+  // 3% growth on 80000 = 2400
+  assert.strictEqual(d.sippOpening,  80000, 'sippOpening should be opening SIPP balance');
+  assert.strictEqual(d.sippGrowth,    2400, 'sippGrowth should be 3% of opening balance');
+  assert.strictEqual(d.sippInflows,      0, 'sippInflows should be 0 (no contributions in retirement)');
+  assert.strictEqual(d.sippOutflows,     0, 'sippOutflows should be 0 (no withdrawals)');
+  assert.strictEqual(d.sippWithdrawn,    0, 'sippWithdrawn should be 0 (drawdown rate is 0)');
+  assert.strictEqual(d.sippBalance,  82400, 'sippBalance should equal opening + growth');
+});
+
+test('debug mode: flat premiumBonds ledger fields are correct', () => {
+  const config = makeConfig({ balance: 0, growthRate: 0, drawdownRate: 0 });
+  config.isa = { ...config.isa, enabled: false };
+  config.premiumBonds = { enabled: true, balance: 20000, prizeRate: 4, drawdownStartAge: null };
+  config.drawdown = { rate: 0 };
+  const rows = runProjection(config, { debug: true });
+  const d = rows[0]._debug;
+  // 4% growth on 20000 = 800; balance capped at 50000 so no cap here
+  assert.strictEqual(d.premiumBondsOpening,   20000, 'premiumBondsOpening should be opening balance');
+  assert.strictEqual(d.premiumBondsGrowth,      800, 'premiumBondsGrowth should be 4% of opening balance');
+  assert.strictEqual(d.premiumBondsInflows,       0, 'premiumBondsInflows should be 0 (no contributions)');
+  assert.strictEqual(d.premiumBondsOutflows,      0, 'premiumBondsOutflows should be 0 (no withdrawals)');
+  assert.strictEqual(d.premiumBondsWithdrawn,     0, 'premiumBondsWithdrawn should be 0');
+  assert.strictEqual(d.premiumBondsBalance,   20800, 'premiumBondsBalance should equal opening + growth');
+});
+
+test('debug mode: flat cash ledger fields are correct', () => {
+  const config = makeConfig({ balance: 0, growthRate: 0, drawdownRate: 0 });
+  config.isa = { ...config.isa, enabled: false };
+  config.cash = { enabled: true, balance: 15000, growthRate: 2, annualContribution: 0,
+                  stopContributionAge: null, drawdownStartAge: null };
+  config.drawdown = { rate: 0 };
+  const rows = runProjection(config, { debug: true });
+  const d = rows[0]._debug;
+  // 2% growth on 15000 = 300
+  assert.strictEqual(d.cashOpening,   15000, 'cashOpening should be opening cash balance');
+  assert.strictEqual(d.cashGrowth,      300, 'cashGrowth should be 2% of opening balance');
+  assert.strictEqual(d.cashInflows,       0, 'cashInflows should be 0 (no contributions)');
+  assert.strictEqual(d.cashOutflows,      0, 'cashOutflows should be 0 (no withdrawals)');
+  assert.strictEqual(d.cashWithdrawn,     0, 'cashWithdrawn should be 0 (drawdown rate is 0)');
+  assert.strictEqual(d.cashBalance,   15300, 'cashBalance should equal opening + growth');
+});
+
+test('debug mode: pension income fields are present', () => {
+  const config = makeConfig({ balance: 100000, growthRate: 0, drawdownRate: 0 });
+  config.dbPension    = { enabled: true, annualIncome: 8000, startAge: 60 };
+  config.statePension = { enabled: true, annualIncome: 11500 };
+  config.statePensionAge = 60;
+  const rows = runProjection(config, { debug: true });
+  const d = rows[0]._debug;
+  assert.strictEqual(d.dbIncome,           8000,  'dbIncome should reflect DB pension');
+  assert.strictEqual(d.stateIncome,       11500,  'stateIncome should reflect state pension');
+  assert.strictEqual(d.totalPensionIncome, 19500, 'totalPensionIncome should be db + state');
+});
+
+test('debug mode: invariantsPassed and accounts are still present', () => {
+  const rows = runProjection(makeConfig({ balance: 50000, growthRate: 5, drawdownRate: 2 }), { debug: true });
+  const d = rows[0]._debug;
+  assert.strictEqual(d.invariantsPassed, true, 'invariantsPassed must be true');
+  assert.ok(d.accounts && typeof d.accounts === 'object', 'accounts ledger must be present');
+});
