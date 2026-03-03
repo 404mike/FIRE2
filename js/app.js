@@ -31,6 +31,7 @@ const outcomeCanvas = document.getElementById('outcomeChart');
 const outcomeLegendEl = document.getElementById('outcomeLegend');
 const tableEl      = document.getElementById('tableContainer');
 const shareBtnEl   = document.getElementById('shareBtn');
+const debugBtnEl   = document.getElementById('debugBtn');
 const toastEl      = document.getElementById('toastContainer');
 
 // Active tab
@@ -79,6 +80,20 @@ let _renderScheduled = false;
         .catch(() => {
           // Fallback: show in prompt
           window.prompt('Copy this link:', url);
+        });
+    });
+  }
+
+  // Debug button — run projection with debug flag and copy full JSON to clipboard
+  if (debugBtnEl) {
+    debugBtnEl.addEventListener('click', () => {
+      const config = getState();
+      const debugRows = runProjection(config, { debug: true });
+      const payload = JSON.stringify({ config, rows: debugRows }, null, 2);
+      navigator.clipboard.writeText(payload)
+        .then(() => showToast('Debug JSON copied to clipboard!'))
+        .catch(() => {
+          window.prompt('Copy debug JSON:', payload);
         });
     });
   }
