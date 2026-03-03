@@ -310,13 +310,13 @@ export function runProjection(config, { debug = false } = {}) {
       sippWithdrawn += take;
       outflowsLed.sipp += take;
     }
-    if (override.premiumBondsCustomDrawdown && premiumBondsDrawdownAllowed) {
+    if (override.premiumBondsCustomDrawdown && config.premiumBonds.enabled) {
       const take = applyCustomDrawdown(balances.premiumBonds, override.premiumBondsCustomDrawdown);
       balances.premiumBonds -= take;
       premiumBondsWithdrawn += take;
       outflowsLed.premiumBonds += take;
     }
-    if (override.cashCustomDrawdown && cashDrawdownAllowed) {
+    if (override.cashCustomDrawdown && config.cash.enabled) {
       const take = applyCustomDrawdown(balances.cash, override.cashCustomDrawdown);
       balances.cash -= take;
       cashWithdrawn += take;

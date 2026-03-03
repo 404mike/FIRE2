@@ -311,3 +311,75 @@ test('debug flag is off by default (no _debug in rows)', () => {
   const rows = runProjection(config);
   assert.ok(!rows[0]._debug, 'Row should not have _debug payload when debug is not set');
 });
+
+// ── Acceptance Test 2: Cash custom drawdown ───────────────────────────────────
+
+test('Acceptance Test 2: cash custom drawdown reduces balance and reports withdrawn', () => {
+  const config = makeConfig({
+    cashEnabled:  true,
+    cashBalance:  40000,
+    drawdownRate: 0,
+    overrides: { [currentYear]: { cashCustomDrawdown: 10000 } },
+  });
+
+  const rows = runProjection(config);
+  const row = rows[0];
+
+  // cash closing = 40000 − 10000 = 30000
+  assert.strictEqual(row.cashBalance, 30000, 'Cash closing balance should be 30000');
+  assert.strictEqual(row.cashWithdrawn, 10000, 'Cash withdrawn should equal the custom drawdown amount');
+});
+
+test('Acceptance Test 2: cash custom drawdown fires during accumulation phase', () => {
+  // Capital reallocation must work before retirement age (pre-retirement transfer)
+  const config = makeConfig({
+    cashEnabled:    true,
+    cashBalance:    40000,
+    currentAge:     40,
+    retirementAge:  65,
+    endAge:         41,
+    drawdownRate:   0,
+    overrides: { [currentYear]: { cashCustomDrawdown: 10000 } },
+  });
+
+  const rows = runProjection(config);
+  const row = rows[0];
+
+  assert.strictEqual(row.phase, 'accumulate', 'Should be in accumulation phase');
+  assert.strictEqual(row.cashBalance, 30000, 'Cash balance should be reduced by custom drawdown in accumulation');
+  assert.strictEqual(row.cashWithdrawn, 10000, 'cashWithdrawn must reflect the custom drawdown amount');
+});
+
+// ── Acceptance Test 3: Withdrawal cannot exceed balance ───────────────────────
+
+test('Acceptance Test 3: PB custom drawdown is capped at available balance', () => {
+  const config = makeConfig({
+    pbBalance:    10000,
+    pbRate:       0,
+    drawdownRate: 0,
+    overrides: { [currentYear]: { premiumBondsCustomDrawdown: 20000 } },
+  });
+
+  const rows = runProjection(config);
+  const row = rows[0];
+
+  // withdrawn = min(10000, 20000) = 10000; balance = 0
+  assert.strictEqual(row.premiumBondsWithdrawn, 10000, 'Withdrawn must be capped at available balance');
+  assert.strictEqual(row.premiumBondsBalance, 0, 'Balance must not go below zero');
+});
+
+test('Acceptance Test 3: cash custom drawdown is capped at available balance', () => {
+  const config = makeConfig({
+    cashEnabled:  true,
+    cashBalance:  10000,
+    drawdownRate: 0,
+    overrides: { [currentYear]: { cashCustomDrawdown: 20000 } },
+  });
+
+  const rows = runProjection(config);
+  const row = rows[0];
+
+  // withdrawn = min(10000, 20000) = 10000; balance = 0
+  assert.strictEqual(row.cashWithdrawn, 10000, 'Withdrawn must be capped at available balance');
+  assert.strictEqual(row.cashBalance, 0, 'Balance must not go below zero');
+});

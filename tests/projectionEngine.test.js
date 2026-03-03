@@ -758,10 +758,9 @@ test('cash drawdown deferred when drawdownStartAge is after retirementAge', () =
 
 // ── Custom drawdown access guards ────────────────────────────────────────────
 
-test('cashCustomDrawdown is not applied before cash drawdownStartAge', () => {
-  // Cash drawdownStartAge is null → defaults to retirementAge (65).
-  // During accumulation (age 55), a cashCustomDrawdown override must not be
-  // applied and must not count as income.
+test('cashCustomDrawdown applies regardless of drawdownStartAge', () => {
+  // cashCustomDrawdown is an unconditional capital reallocation override.
+  // It must reduce the balance even during accumulation (before drawdownStartAge).
   const currentYear = new Date().getFullYear();
   const config = makeConfig({
     balance:       0,
@@ -781,15 +780,12 @@ test('cashCustomDrawdown is not applied before cash drawdownStartAge', () => {
 
   const rows = runProjection(config);
 
-  // Age 55: cash not accessible (retirementAge is 65) — custom drawdown must not fire
-  assert.strictEqual(rows[0].cashWithdrawn, 0, 'Age 55: cashCustomDrawdown should not apply before drawdownStartAge');
-  assert.strictEqual(rows[0].totalIncome, 0, 'Age 55: totalIncome must be 0 (no drawdown allowed yet)');
-  // Balance should be unchanged (no drawdown applied)
-  assert.strictEqual(rows[0].cashBalance, 40000, 'Age 55: cash balance unchanged when drawdown not allowed');
+  // Age 55: cashCustomDrawdown must fire unconditionally (capital reallocation)
+  assert.strictEqual(rows[0].cashWithdrawn, 40000, 'Age 55: cashCustomDrawdown must apply regardless of drawdownStartAge');
+  assert.strictEqual(rows[0].cashBalance, 0, 'Age 55: cash balance reduced to 0 by custom drawdown');
 
-  // Age 65 (index 10): cash accessible — manual drawdown is applied in the first retirement year
-  // (The override is only set for currentYear so it won't fire again, but we verify the general rule.)
-  assert.strictEqual(rows[10].cashBalance, 40000, 'Age 65: cash balance should be intact from prior years (override only in year 0)');
+  // Age 65 (index 10): no further override — balance remains 0
+  assert.strictEqual(rows[10].cashBalance, 0, 'Age 65: cash balance should still be 0 (no further override)');
 });
 
 test('isaCustomDrawdown is not applied before ISA drawdownStartAge', () => {
@@ -822,9 +818,9 @@ test('isaCustomDrawdown is not applied before ISA drawdownStartAge', () => {
   assert.strictEqual(rows[5].totalIncome, 10000, 'Age 60: totalIncome reflects the custom drawdown');
 });
 
-test('premiumBondsCustomDrawdown is not applied before PB drawdown age', () => {
-  // Premium bonds drawdownStartAge is null → defaults to retirementAge (65).
-  // A custom drawdown override must not fire during accumulation.
+test('premiumBondsCustomDrawdown applies regardless of drawdown age', () => {
+  // premiumBondsCustomDrawdown is an unconditional capital reallocation override.
+  // It must reduce the balance even during accumulation (before retirementAge).
   const currentYear = new Date().getFullYear();
   const config = makeConfig({
     balance:       0,
@@ -840,19 +836,19 @@ test('premiumBondsCustomDrawdown is not applied before PB drawdown age', () => {
   config.premiumBonds.balance    = 20000;
   config.premiumBonds.prizeRate  = 0;
   config.premiumBonds.drawdownStartAge = null; // defaults to retirementAge (65)
-  // Block before drawdown age (year 0 = age 55)
+  // Apply at age 55 (year 0 = accumulation phase)
   config.overrides[currentYear] = { premiumBondsCustomDrawdown: 20000 };
-  // Allow at retirementAge (year 10 = age 65)
+  // Apply at retirementAge (year 10 = age 65)
   config.overrides[currentYear + 10] = { premiumBondsCustomDrawdown: 5000 };
 
   const rows = runProjection(config);
 
-  // Age 55: PB not accessible — custom drawdown must not fire
-  assert.strictEqual(rows[0].premiumBondsWithdrawn, 0, 'Age 55: premiumBondsCustomDrawdown should not apply before drawdown age');
-  assert.strictEqual(rows[0].totalIncome, 0, 'Age 55: totalIncome must be 0 (no drawdown allowed yet)');
+  // Age 55: PB custom drawdown fires unconditionally (capital reallocation)
+  assert.strictEqual(rows[0].premiumBondsWithdrawn, 20000, 'Age 55: premiumBondsCustomDrawdown must apply regardless of drawdown age');
+  assert.strictEqual(rows[0].premiumBondsBalance, 0, 'Age 55: PB balance reduced to 0');
 
-  // Age 65: PB accessible — custom drawdown fires
-  assert.strictEqual(rows[10].premiumBondsWithdrawn, 5000, 'Age 65: premiumBondsCustomDrawdown applies at drawdown age');
+  // Age 65: custom drawdown fires (balance is 0 so capped at 0 for second override)
+  assert.strictEqual(rows[10].premiumBondsWithdrawn, 0, 'Age 65: no balance remaining for second override');
 });
 
 // ── maxIncome threshold ──────────────────────────────────────────────────────
