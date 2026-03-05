@@ -103,9 +103,47 @@ export function renderChart(canvas, rows, config, visibility = {}) {
     },
   ];
 
-  // Vertical annotation lines via inline plugin
+  // Vertical annotation lines + phase background shading via inline plugin
   const annotationPlugin = {
     id: 'fire2Annotations',
+    beforeDraw(chart) {
+      const ctx = chart.ctx;
+      const xAxis = chart.scales.x;
+      const yAxis = chart.scales.y;
+      if (!xAxis || !yAxis) return;
+
+      const getX = year => {
+        const idx = labels.indexOf(year);
+        return idx === -1 ? null : xAxis.getPixelForValue(idx);
+      };
+
+      ctx.save();
+
+      // Phase bands
+      const xRetire  = getX(retirementYear);
+      const xPension = dbStartYear ? getX(dbStartYear) : (spStartYear ? getX(spStartYear) : null);
+      const chartRight = xAxis.right;
+      const chartLeft  = xAxis.left;
+
+      if (xRetire !== null) {
+        // Accumulation (start → retire): subtle blue tint
+        ctx.fillStyle = 'rgba(37,99,235,0.04)';
+        ctx.fillRect(chartLeft, yAxis.top, xRetire - chartLeft, yAxis.bottom - yAxis.top);
+
+        // Bridge (retire → pension) or full retirement: amber tint
+        const bridgeEnd = xPension !== null ? xPension : chartRight;
+        ctx.fillStyle = 'rgba(217,119,6,0.06)';
+        ctx.fillRect(xRetire, yAxis.top, bridgeEnd - xRetire, yAxis.bottom - yAxis.top);
+
+        // Pension phase (pension start → end): green tint
+        if (xPension !== null) {
+          ctx.fillStyle = 'rgba(22,163,74,0.05)';
+          ctx.fillRect(xPension, yAxis.top, chartRight - xPension, yAxis.bottom - yAxis.top);
+        }
+      }
+
+      ctx.restore();
+    },
     afterDraw(chart) {
       const ctx = chart.ctx;
       const xAxis = chart.scales.x;

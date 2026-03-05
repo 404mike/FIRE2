@@ -41,6 +41,7 @@
       <!-- Tabs -->
       <div class="tabs">
         <button class="tab-btn active" data-tab="chart">📊 Chart</button>
+        <button class="tab-btn" data-tab="income">💰 Income</button>
         <button class="tab-btn" data-tab="outcomes">📈 Outcomes</button>
         <button class="tab-btn" data-tab="table">📋 Year Table</button>
       </div>
@@ -53,6 +54,23 @@
             <canvas id="mainChart"></canvas>
           </div>
           <div class="chart-legend" id="chartLegend">
+            <!-- Populated by app.js -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Income vs Spending panel -->
+      <div class="tab-panel" id="panel-income">
+        <div class="chart-card">
+          <div class="chart-title">Income vs Required Spending (Retirement Years)</div>
+          <p class="outcome-info">
+            Stacked bars show income sources each year in retirement (portfolio drawdown + pension income).
+            The dashed red line shows your required spending. Years where bars fall short of the line have a spending shortfall.
+          </p>
+          <div class="chart-wrapper">
+            <canvas id="incomeChart"></canvas>
+          </div>
+          <div class="chart-legend" id="incomeLegend">
             <!-- Populated by app.js -->
           </div>
         </div>
