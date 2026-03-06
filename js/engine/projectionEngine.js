@@ -179,7 +179,7 @@ export function runProjection(config, { debug = false } = {}) {
     let spendingCovered       = 0;
     let requiredSpending      = 0;
 
-    const { total: pensionIncome, dbIncome, stateIncome } = getPensionIncome(config, age);
+    const { total: pensionIncome, dbIncome, stateIncome } = getPensionIncome(config, age, inflationFactor);
 
     // Per-account drawdown eligibility is computed outside the retirement gate so
     // that accounts with an explicit drawdown start age earlier than retirementAge
