@@ -19,6 +19,7 @@ import { renderInputView }                 from './ui/inputView.js';
 import { renderSummaryView }               from './ui/summaryView.js';
 import { renderChart, destroyChart, toggleDataset } from './ui/chartView.js';
 import { renderOutcomeChart, destroyOutcomeChart } from './ui/outcomeChartView.js';
+import { renderIncomeChart, renderIncomeLegend, destroyIncomeChart } from './ui/incomeChartView.js';
 import { renderTableView }                 from './ui/tableView.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
@@ -29,6 +30,8 @@ const chartCanvas  = document.getElementById('mainChart');
 const legendEl     = document.getElementById('chartLegend');
 const outcomeCanvas = document.getElementById('outcomeChart');
 const outcomeLegendEl = document.getElementById('outcomeLegend');
+const incomeCanvas  = document.getElementById('incomeChart');
+const incomeLegendEl = document.getElementById('incomeLegend');
 const tableEl      = document.getElementById('tableContainer');
 const shareBtnEl   = document.getElementById('shareBtn');
 const debugBtnEl   = document.getElementById('debugBtn');
@@ -142,6 +145,12 @@ function _render() {
     renderOutcomeLegend(outcomeLegendEl);
   }
 
+  // Income vs Spending chart
+  if (incomeCanvas && typeof Chart !== 'undefined') {
+    renderIncomeChart(incomeCanvas, rows, config);
+    renderIncomeLegend(incomeLegendEl);
+  }
+
   // Table
   if (_activeTab === 'table' || tableEl) {
     renderTableView(tableEl, rows, config);
@@ -171,6 +180,12 @@ const LEGEND_ITEMS = [
   { key: 'cash',         label: 'Cash',            color: '#64748b' },
 ];
 
+const PHASE_LEGEND_ITEMS = [
+  { label: 'Accumulation', color: 'rgba(37,99,235,0.15)' },
+  { label: 'Bridge',       color: 'rgba(217,119,6,0.20)' },
+  { label: 'Pension',      color: 'rgba(22,163,74,0.18)' },
+];
+
 const OUTCOME_LEGEND_ITEMS = [
   { label: 'P10 — Pessimistic (growth −3 pp)', color: 'rgba(37,99,235,0.5)', dashed: true },
   { label: 'P50 — Typical', color: '#2563eb', dashed: false },
@@ -179,14 +194,23 @@ const OUTCOME_LEGEND_ITEMS = [
 
 function renderLegend(el) {
   if (!el) return;
-  el.innerHTML = LEGEND_ITEMS.map(item => `
+  const seriesHtml = LEGEND_ITEMS.map(item => `
     <div class="legend-item ${_visibility[item.key] ? '' : 'inactive'}" data-key="${item.key}">
       <div class="legend-dot" style="background:${item.color}"></div>
       <span>${item.label}</span>
     </div>
   `).join('');
 
-  el.querySelectorAll('.legend-item').forEach(li => {
+  const phaseHtml = PHASE_LEGEND_ITEMS.map(item => `
+    <div class="legend-item" style="cursor:default">
+      <div class="legend-dot" style="background:${item.color};border:1px solid rgba(0,0,0,0.12)"></div>
+      <span>${item.label}</span>
+    </div>
+  `).join('');
+
+  el.innerHTML = seriesHtml + '<span class="legend-sep"></span>' + phaseHtml;
+
+  el.querySelectorAll('.legend-item[data-key]').forEach(li => {
     li.addEventListener('click', () => {
       const key = li.dataset.key;
       // Map key to chart dataset label

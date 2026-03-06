@@ -2,7 +2,7 @@
  * summaryView.js — Renders key headline metrics above the chart
  */
 
-import { formatCurrency, formatAge } from './helpers.js';
+import { formatCurrency } from './helpers.js';
 
 /**
  * Render summary tiles into `container`.
@@ -17,9 +17,6 @@ export function renderSummaryView(container, rows, config) {
     return;
   }
 
-  // Peak net worth
-  const peak = rows.reduce((max, r) => r.totalNetWorth > max.totalNetWorth ? r : max, rows[0]);
-
   // Net worth at retirement
   const retirementRow = rows.find(r => r.age === config.retirementAge) || rows[0];
 
@@ -33,48 +30,90 @@ export function renderSummaryView(container, rows, config) {
   // Years of shortfall
   const shortfallYears = rows.filter(r => r.shortfall > 0).length;
 
-  // Total pension income projected
-  const totalPensionIncome = rows
-    .filter(r => r.phase === 'retire')
-    .reduce((sum, r) => sum + r.totalPensionIncome, 0);
+  // FI Age: first retirement year where no spending shortfall exists
+  const retirementRows = rows.filter(r => r.phase === 'retire');
+  const fiRow = retirementRows.find(r => r.shortfall === 0);
+  const fiAge = fiRow ? fiRow.age : null;
 
-  const sustainClass = isSustainable ? 'tile-positive' : 'tile-negative';
-  const sustainLabel = isSustainable
-    ? `Portfolio lasts to age ${config.endAge}`
-    : `Exhausted at age ${exhausted.age}`;
+  // Monthly retirement income estimate
+  const monthlyIncome = config.retirementSpending / 12;
+
+  // Asset allocation at retirement (or current age if already retired)
+  const allocRow = retirementRow;
+  const totalAlloc = (allocRow.isaBalance || 0) + (allocRow.sippBalance || 0) +
+                     (allocRow.premiumBondsBalance || 0) + (allocRow.cashBalance || 0);
+
+  // Portfolio Health indicator
+  let healthEmoji, healthLabel, healthClass;
+  if (isSustainable && shortfallYears === 0) {
+    healthEmoji = '🟢'; healthLabel = 'Healthy'; healthClass = 'tile-positive';
+  } else if (isSustainable && shortfallYears <= 3) {
+    healthEmoji = '🟡'; healthLabel = 'Marginal'; healthClass = 'tile-warning';
+  } else {
+    healthEmoji = '🔴'; healthLabel = 'At Risk'; healthClass = 'tile-negative';
+  }
+
+  // Safe spending estimate from 4% rule at retirement
+  const safeSpending4pct = retirementRow.totalNetWorth * 0.04;
+
+  // Allocation bars (only show enabled accounts)
+  const allocItems = [
+    { label: 'ISA',     value: allocRow.isaBalance,           color: '#2563eb', enabled: config.isa.enabled },
+    { label: 'SIPP',    value: allocRow.sippBalance,          color: '#d97706', enabled: config.sipp.enabled },
+    { label: 'Bonds',   value: allocRow.premiumBondsBalance,  color: '#9333ea', enabled: config.premiumBonds.enabled },
+    { label: 'Cash',    value: allocRow.cashBalance,          color: '#64748b', enabled: config.cash.enabled },
+  ].filter(a => a.enabled && a.value > 0);
+
+  const allocBars = totalAlloc > 0 && allocItems.length > 0
+    ? `<div class="alloc-bar">
+        ${allocItems.map(a => `
+          <div class="alloc-segment" style="width:${((a.value / totalAlloc) * 100).toFixed(1)}%;background:${a.color}"
+               title="${a.label}: ${formatCurrency(a.value)} (${((a.value / totalAlloc) * 100).toFixed(0)}%)"></div>
+        `).join('')}
+      </div>
+      <div class="alloc-legend">
+        ${allocItems.map(a => `
+          <span class="alloc-key">
+            <span class="alloc-dot" style="background:${a.color}"></span>
+            ${a.label} ${((a.value / totalAlloc) * 100).toFixed(0)}%
+          </span>
+        `).join('')}
+      </div>`
+    : '';
 
   container.innerHTML = `
-    <div class="summary-grid">
-      <div class="summary-tile">
+    <div class="snapshot-grid">
+      <div class="snapshot-tile snapshot-primary">
         <div class="tile-label">Net Worth at Retirement</div>
         <div class="tile-value">${formatCurrency(retirementRow.totalNetWorth)}</div>
         <div class="tile-sub">At age ${config.retirementAge}</div>
       </div>
-      <div class="summary-tile">
-        <div class="tile-label">Peak Net Worth</div>
-        <div class="tile-value">${formatCurrency(peak.totalNetWorth)}</div>
-        <div class="tile-sub">Age ${peak.age} (${peak.year})</div>
+      <div class="snapshot-tile">
+        <div class="tile-label">FI Age</div>
+        <div class="tile-value">${fiAge !== null ? fiAge : '—'}</div>
+        <div class="tile-sub">${fiAge !== null ? `Financially independent at ${fiAge}` : 'Spending exceeds income'}</div>
       </div>
-      <div class="summary-tile ${sustainClass}">
-        <div class="tile-label">Portfolio Sustainability</div>
-        <div class="tile-value">${isSustainable ? '✓ Sustainable' : '✗ Shortfall'}</div>
-        <div class="tile-sub">${sustainLabel}</div>
+      <div class="snapshot-tile">
+        <div class="tile-label">Monthly Income</div>
+        <div class="tile-value">${formatCurrency(monthlyIncome)}</div>
+        <div class="tile-sub">Target retirement spend</div>
       </div>
-      <div class="summary-tile">
+      <div class="snapshot-tile">
+        <div class="tile-label">4% Safe Spending</div>
+        <div class="tile-value">${formatCurrency(safeSpending4pct)}</div>
+        <div class="tile-sub">Sustainable annual draw</div>
+      </div>
+      <div class="snapshot-tile ${healthClass}">
+        <div class="tile-label">Portfolio Health</div>
+        <div class="tile-value">${healthEmoji} ${healthLabel}</div>
+        <div class="tile-sub">${isSustainable ? `Lasts to age ${config.endAge}` : `Exhausted at age ${exhausted.age}`}${shortfallYears > 0 ? ` · ${shortfallYears} yr${shortfallYears > 1 ? 's' : ''} short` : ''}</div>
+      </div>
+      <div class="snapshot-tile">
         <div class="tile-label">Final Net Worth (Age ${config.endAge})</div>
         <div class="tile-value ${finalRow.totalNetWorth > 0 ? '' : 'tile-negative'}">${formatCurrency(finalRow.totalNetWorth)}</div>
         <div class="tile-sub">${finalRow.year}</div>
       </div>
-      <div class="summary-tile">
-        <div class="tile-label">Total Pension Income</div>
-        <div class="tile-value">${formatCurrency(totalPensionIncome)}</div>
-        <div class="tile-sub">Across retirement</div>
-      </div>
-      <div class="summary-tile ${shortfallYears > 0 ? 'tile-negative' : 'tile-positive'}">
-        <div class="tile-label">Years with Spending Shortfall</div>
-        <div class="tile-value">${shortfallYears}</div>
-        <div class="tile-sub">${shortfallYears === 0 ? 'Fully funded' : `${shortfallYears} year${shortfallYears > 1 ? 's' : ''} underfunded`}</div>
-      </div>
     </div>
+    ${allocBars ? `<div class="alloc-section">${allocBars}</div>` : ''}
   `;
 }

@@ -59,7 +59,6 @@ test('state pension remains active after state pension age', () => {
   const { stateIncome } = getPensionIncome(makeConfig(), 80);
   assert.strictEqual(stateIncome, 11000);
 });
-
 test('disabled state pension contributes nothing even after state pension age', () => {
   const config = makeConfig({
     statePension: { enabled: false, annualIncome: 11000 },
@@ -90,4 +89,38 @@ test('total is sum of both active pensions', () => {
   assert.strictEqual(dbIncome, 12000);
   assert.strictEqual(stateIncome, 11000);
   assert.strictEqual(total, 23000);
+});
+
+// ── State pension inflation adjustment ───────────────────────────────────────
+
+test('state pension is scaled by inflationFactor when active', () => {
+  // inflationFactor of 1.1 = 10% cumulative inflation
+  const { stateIncome } = getPensionIncome(makeConfig(), 67, 1.1);
+  assert.strictEqual(stateIncome, 11000 * 1.1);
+});
+
+test('state pension inflation does not apply before state pension age', () => {
+  // Even with a non-unity inflationFactor, income is 0 before activation age
+  const { stateIncome } = getPensionIncome(makeConfig(), 66, 1.5);
+  assert.strictEqual(stateIncome, 0);
+});
+
+test('DB pension is not inflation-adjusted (fixed nominal)', () => {
+  // DB income stays at its configured value regardless of inflationFactor
+  const { dbIncome } = getPensionIncome(makeConfig(), 65, 1.2);
+  assert.strictEqual(dbIncome, 12000);
+});
+
+test('inflationFactor defaults to 1 (no inflation) when omitted', () => {
+  // Backward-compatible: calling without inflationFactor gives nominal value
+  const { stateIncome } = getPensionIncome(makeConfig(), 70);
+  assert.strictEqual(stateIncome, 11000);
+});
+
+test('total reflects inflated state pension plus fixed DB pension', () => {
+  const factor = 1.25;
+  const { total, dbIncome, stateIncome } = getPensionIncome(makeConfig(), 67, factor);
+  assert.strictEqual(dbIncome, 12000);
+  assert.strictEqual(stateIncome, 11000 * factor);
+  assert.strictEqual(total, 12000 + 11000 * factor);
 });

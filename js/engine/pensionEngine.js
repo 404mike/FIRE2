@@ -8,11 +8,16 @@
 /**
  * Calculate total pension income active in a given year.
  *
- * @param {object} config   App state / config
- * @param {number} age      Age at start of this modelled year
+ * The state pension is inflation-adjusted: the configured `annualIncome` is
+ * treated as the value in today's money and is scaled by `inflationFactor`
+ * (cumulative CPI from the start year) so it rises in line with inflation.
+ *
+ * @param {object} config          App state / config
+ * @param {number} age             Age at start of this modelled year
+ * @param {number} [inflationFactor=1]  Cumulative inflation multiplier from base year
  * @returns {object} { total, dbIncome, stateIncome, breakdown }
  */
-export function getPensionIncome(config, age) {
+export function getPensionIncome(config, age, inflationFactor = 1) {
   let dbIncome = 0;
   let stateIncome = 0;
 
@@ -21,9 +26,11 @@ export function getPensionIncome(config, age) {
     dbIncome = config.dbPension.annualIncome;
   }
 
-  // State pension — start age = statePensionAge (configurable)
+  // State pension — start age = statePensionAge (configurable).
+  // Inflated from today's money to nominal value using the cumulative
+  // inflation factor so the real purchasing power stays constant.
   if (config.statePension.enabled && age >= config.statePensionAge) {
-    stateIncome = config.statePension.annualIncome;
+    stateIncome = config.statePension.annualIncome * inflationFactor;
   }
 
   const total = dbIncome + stateIncome;
