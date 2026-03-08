@@ -81,25 +81,25 @@ function makeConfig({
 
 // ── Retirement phase: growth vs drawdown relationship ────────────────────────
 
-test('retirement: growth > drawdown → balance increases each year', () => {
-  // 5% growth, 2% drawdown → net +3% per year
-  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 2 }));
-  // Year 1: 100000 × (1 + 0.05 − 0.02) = 103000
+test('retirement: growth > drawdown ceiling → balance increases each year', () => {
+  // 5% growth, 2% drawdown ceiling, spending £5,000 (exceeds ceiling 2000) → net +3% per year
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 2, spending: 5000 }));
+  // Year 1: ceiling caps withdrawal at 2% = 2000; 100000 × 1.05 − 2000 = 103000
   assert.strictEqual(rows[0].isaBalance, 103000);
-  // Year 2: 103000 × 1.03 = 106090
+  // Year 2: ceiling = 2% × 103000 = 2060; 103000 × 1.05 − 2060 = 106090
   assert.strictEqual(rows[1].isaBalance, 106090);
 });
 
-test('retirement: growth = drawdown → balance stays flat', () => {
-  // 5% growth, 5% drawdown → net 0%
-  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 5 }));
+test('retirement: growth = drawdown ceiling → balance stays flat', () => {
+  // 5% growth, 5% drawdown ceiling, spending £10,000 (exceeds ceiling 5000) → net 0%
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 5, spending: 10000 }));
   assert.strictEqual(rows[0].isaBalance, 100000);
   assert.strictEqual(rows[1].isaBalance, 100000);
 });
 
-test('retirement: growth < drawdown → balance decreases each year', () => {
-  // 2% growth, 5% drawdown → net −3% per year
-  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 2, drawdownRate: 5 }));
+test('retirement: growth < drawdown ceiling → balance decreases each year', () => {
+  // 2% growth, 5% drawdown ceiling, spending £10,000 (exceeds ceiling 5000) → net −3% per year
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 2, drawdownRate: 5, spending: 10000 }));
   // Year 1: 100000 × 0.97 = 97000
   assert.strictEqual(rows[0].isaBalance, 97000);
   // Year 2: 97000 × 0.97 = 94090
@@ -107,7 +107,8 @@ test('retirement: growth < drawdown → balance decreases each year', () => {
 });
 
 test('retirement: balance never goes below zero', () => {
-  const rows = runProjection(makeConfig({ balance: 5000, growthRate: 0, drawdownRate: 100 }));
+  // Spending-driven depletion: balance can reach zero but never go negative
+  const rows = runProjection(makeConfig({ balance: 5000, growthRate: 0, drawdownRate: 0, spending: 100000 }));
   for (const row of rows) {
     assert.ok(row.isaBalance >= 0, `isaBalance went negative: ${row.isaBalance}`);
     assert.ok(row.totalNetWorth >= 0, `totalNetWorth went negative: ${row.totalNetWorth}`);
@@ -116,26 +117,26 @@ test('retirement: balance never goes below zero', () => {
 
 // ── Problem statement reference case ─────────────────────────────────────────
 
-test('problem statement example: £416,089 at 5% growth, 2% drawdown → £428,572', () => {
-  const rows = runProjection(makeConfig({ balance: 416089, growthRate: 5, drawdownRate: 2 }));
+test('problem statement example: £416,089 at 5% growth, 2% ceiling → £428,572', () => {
+  // Spending exceeds the 2% ceiling → ceiling drives withdrawal (same net-of-withdrawal balance)
+  const rows = runProjection(makeConfig({ balance: 416089, growthRate: 5, drawdownRate: 2, spending: 10000 }));
   // 416089 × 1.03 = 428571.67 → rounds to 428572
   assert.strictEqual(rows[0].isaBalance, 428572);
 });
 
 // ── Drawdown-rate vs spending: only one active at a time ─────────────────────
 
-test('drawdown rate wins when spending also configured (no double-withdrawal)', () => {
-  // 5% growth, 2% drawdown rate, £50,000 spending
-  // Expected: portfolio grows at net +3%; spending does NOT override the rate
-  // Buggy behaviour (Math.max): gap = max(50000, 6087) = 50000 → balance ~263,604
-  // Correct behaviour: gap = 6087 (rate) → balance = 304370 × 1.03 = 313,501
+test('drawdown ceiling caps withdrawal when spending exceeds ceiling (shortfall reported)', () => {
+  // 5% growth, 2% drawdown ceiling, £50,000 spending
+  // Spending gap 50,000 exceeds the 2% ceiling 6,087 → ceiling is the binding constraint.
+  // Correct behaviour: gap = min(50000, 6087) = 6087 → balance = 304370 × 1.03 = 313,501
   const rows = runProjection(makeConfig({ balance: 304370, growthRate: 5, drawdownRate: 2, spending: 50000 }));
   // Net +3%: 304370 × 1.03 = 313501.1 → rounds to 313501
   assert.strictEqual(rows[0].isaBalance, 313501);
-  // Only the 2% rate was withdrawn (not £50,000)
+  // Only the 2% ceiling was withdrawn (not £50,000)
   assert.strictEqual(rows[0].isaWithdrawn, Math.round(304370 * 0.02)); // 6087
   // Shortfall correctly reflects the unmet spending
-  assert.ok(rows[0].shortfall > 0, 'expected shortfall when rate withdrawal < spending');
+  assert.ok(rows[0].shortfall > 0, 'expected shortfall when ceiling withdrawal < spending');
 });
 
 test('spending drives withdrawals when drawdown rate is zero', () => {
@@ -145,12 +146,11 @@ test('spending drives withdrawals when drawdown rate is zero', () => {
   assert.strictEqual(rows[0].isaBalance, 90000);
 });
 
-test('null/undefined drawdown rate defaults to non-zero (rate strategy applies)', () => {
-  // When config.drawdown.rate is null, the engine defaults to 4%, so rate drives withdrawals
+test('drawdown ceiling applies when spending exceeds the ceiling rate', () => {
+  // When spending (50,000) exceeds the 4% ceiling (4,000), ceiling caps the withdrawal
   const config = makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 4, spending: 50000 });
-  // Ensure the spending does not override the 4% rate (gap = 4000 not 50000)
+  // Withdrawal capped at 4% ceiling = 4,000; net +1%: 100000 × 1.01 = 101000
   const rows = runProjection(config);
-  // 4% drawdown, 5% growth → net +1%: 100000 × 1.01 = 101000
   assert.strictEqual(rows[0].isaBalance, 101000);
   assert.strictEqual(rows[0].isaWithdrawn, Math.round(100000 * 0.04)); // 4000
 });
@@ -430,13 +430,13 @@ test('sippDrawdownRateOverride respects sippAccessAge (no draw before access age
 
 test('sippDrawdownRateOverride and global portfolio drawdown coexist correctly', () => {
   // SIPP draws at its specific rate (3%) from SIPP specifically.
-  // Remaining portfolio gap comes from ISA (global 4% rate, excluding SIPP).
+  // Remaining spending gap after SIPP draw comes from ISA (spending drives, ceiling 4% portfolio).
   const currentYear = new Date().getFullYear();
   const config = makeConfig({
     balance:       100000,   // ISA
     growthRate:    0,
-    drawdownRate:  4,        // Global portfolio rate = 4%
-    spending:      0,
+    drawdownRate:  4,        // Global portfolio ceiling = 4%
+    spending:      8000,     // Spending matches the 4% ceiling (200,000 × 4% = 8,000)
     currentAge:    58,
     retirementAge: 58,
     endAge:        59,
@@ -452,7 +452,7 @@ test('sippDrawdownRateOverride and global portfolio drawdown coexist correctly',
 
   // SIPP draws 3% of its own balance = 3,000 (specific)
   assert.strictEqual(rows[0].sippWithdrawn, 3000);
-  // Total portfolio (200,000) × 4% = 8,000. SIPP already drew 3,000.
+  // Spending gap = 8,000; ceiling = 4% × 200,000 = 8,000; SIPP already drew 3,000.
   // Adjusted gap = max(0, 8,000 − 3,000) = 5,000 drawn from ISA.
   assert.strictEqual(rows[0].isaWithdrawn, 5000);
   // Total withdrawn = 3,000 (SIPP) + 5,000 (ISA) = 8,000
@@ -867,10 +867,11 @@ test('excessIncome is zero when totalIncome is below maxIncome', () => {
 });
 
 test('excessIncome reflects amount above maxIncome threshold', () => {
-  const config = makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 4 });
+  // spending=5000 exceeds 4% ceiling=4000 → withdrawal=4000, totalIncome=4000
+  const config = makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 4, spending: 5000 });
   config.maxIncome = 2000;
   const rows = runProjection(config);
-  // totalIncome = 4% × 100000 = 4000; maxIncome = 2000 → excess = 2000
+  // totalIncome = 4% ceiling × 100000 = 4000; maxIncome = 2000 → excess = 2000
   assert.strictEqual(rows[0].excessIncome, 2000, 'excessIncome should equal totalIncome − maxIncome');
 });
 
@@ -887,9 +888,9 @@ test('debug mode: _debug is present when debug=true', () => {
 });
 
 test('debug mode: flat isa ledger fields are correct', () => {
-  // 5% growth on 100000 = 5000 growth; 2% drawdown on 100000 = 2000 withdrawn
-  // closing balance = 100000 × (1 + 0.05 − 0.02) = 103000
-  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 2 }), { debug: true });
+  // 5% growth on 100000 = 5000 growth; spending 5000 exceeds 2% ceiling 2000 → 2000 withdrawn
+  // closing balance = 100000 × 1.05 − 2000 = 103000
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 2, spending: 5000 }), { debug: true });
   const d = rows[0]._debug;
   assert.strictEqual(d.isaOpening,   100000, 'isaOpening should be the opening ISA balance');
   assert.strictEqual(d.isaGrowth,     5000,  'isaGrowth should be 5% of opening balance');
@@ -1038,4 +1039,46 @@ test('accumulation: contributions are made before growth (contributions earn gro
   const rows = runProjection(config);
   assert.strictEqual(rows[0].isaContribution, 10000);
   assert.strictEqual(rows[0].isaBalance,      115500);
+});
+
+// ── totalGrowth field ────────────────────────────────────────────────────────
+
+test('totalGrowth is the sum of per-account growth in a row', () => {
+  // 5% growth on ISA £100,000 = £5,000; no withdrawal (spending=0 < ceiling)
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 0 }));
+  assert.strictEqual(rows[0].totalGrowth, 5000, 'totalGrowth should equal ISA growth of 5%');
+});
+
+test('realTotalGrowth is inflation-adjusted version of totalGrowth', () => {
+  const config = makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 0 });
+  config.inflationRate = 2.5;
+  const rows = runProjection(config);
+  // nominal growth = 5000; inflationFactor ≈ 1.025; real ≈ 4878
+  const expected = Math.round(5000 / Math.pow(1.025, 0)); // year 0: inflationFactor = 1.0
+  assert.strictEqual(rows[0].realTotalGrowth, expected, 'realTotalGrowth should be inflation-adjusted');
+});
+
+// ── Ceiling: spending below rate ceiling → spending drives, no overshoot ─────
+
+test('spending below ceiling: spending drives withdrawal (not the ceiling)', () => {
+  // 5% growth, 10% ceiling, spending £3,000 → withdrawal = 3,000 (not 10,000)
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 10, spending: 3000 }));
+  assert.strictEqual(rows[0].isaWithdrawn, 3000, 'withdrawal should equal spending gap, not the ceiling');
+  assert.strictEqual(rows[0].shortfall,    0,    'no shortfall when portfolio covers spending');
+  // balance = 100000 × 1.05 − 3000 = 102000
+  assert.strictEqual(rows[0].isaBalance,   102000);
+});
+
+test('spending above ceiling: ceiling caps withdrawal and creates shortfall', () => {
+  // 5% growth, 2% ceiling, spending £5,000 → withdrawal = 2,000 (ceiling), shortfall £3,000
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 2, spending: 5000 }));
+  assert.strictEqual(rows[0].isaWithdrawn, 2000,  'withdrawal capped at 2% ceiling');
+  assert.strictEqual(rows[0].shortfall,    3000,  'shortfall = spending − ceiling withdrawal');
+});
+
+test('no ceiling (drawdownRate=0): full spending gap withdrawn from portfolio', () => {
+  // drawdownRate=0 means no ceiling; all spending gap comes from portfolio
+  const rows = runProjection(makeConfig({ balance: 100000, growthRate: 0, drawdownRate: 0, spending: 10000 }));
+  assert.strictEqual(rows[0].isaWithdrawn, 10000, 'full spending gap withdrawn when no ceiling');
+  assert.strictEqual(rows[0].shortfall,    0);
 });

@@ -41,7 +41,7 @@ export function renderTableView(container, rows, config) {
       <tr class="thead-group">
         <th colspan="2"></th>
         <th colspan="5" class="group-header">Balances (${unitLabel})</th>
-        <th colspan="1" class="group-header">Contributions</th>
+        <th colspan="2" class="group-header">Contributions / Growth</th>
         <th colspan="2" class="group-header">Guaranteed Income</th>
         <th colspan="4" class="group-header">Portfolio Withdrawals</th>
         <th colspan="2" class="group-header">Totals</th>
@@ -58,6 +58,7 @@ export function renderTableView(container, rows, config) {
         <th>Cash</th>
         <th>Net Worth</th>
         <th>Contributions</th>
+        <th>Growth</th>
         <th>DB Income</th>
         <th>SP Income</th>
         <th>ISA Drawn</th>
@@ -102,6 +103,7 @@ export function renderTableView(container, rows, config) {
     const dbIncome    = d(row, 'dbIncome');
     const stateIncome = d(row, 'stateIncome');
     const contribs    = d(row, 'totalContributions');
+    const growth      = d(row, 'totalGrowth');
     const isaW        = d(row, 'isaWithdrawn');
     const sippW       = d(row, 'sippWithdrawn');
     const pbW         = d(row, 'premiumBondsWithdrawn');
@@ -123,6 +125,7 @@ export function renderTableView(container, rows, config) {
         <td>${formatCurrency(d(row, 'cashBalance'))}</td>
         <td><strong>${formatCurrency(d(row, 'totalNetWorth'))}</strong></td>
         <td class="${contribs > 0 ? 'num-positive' : 'num-zero'}">${contribs > 0 ? formatCurrency(contribs) : '—'}</td>
+        <td class="${growth > 0 ? 'num-positive' : 'num-zero'}">${growth > 0 ? formatCurrency(growth) : '—'}</td>
         <td class="${dbIncome > 0 ? 'num-positive' : 'num-zero'}">${dbIncome > 0 ? formatCurrency(dbIncome) : '—'}</td>
         <td class="${stateIncome > 0 ? 'num-positive' : 'num-zero'}">${stateIncome > 0 ? formatCurrency(stateIncome) : '—'}</td>
         <td class="${isaW > 0 ? 'num-negative' : 'num-zero'}">${isaW > 0 ? formatCurrency(isaW) : '—'}</td>
