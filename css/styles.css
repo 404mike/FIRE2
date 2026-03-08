@@ -993,6 +993,10 @@ header {
 .year-table .col-growth { color: #475569; }
 /* Guaranteed income: purple */
 .year-table .col-guaranteed { color: #7c3aed; }
+/* Required spending: red-orange */
+.year-table .col-spending { color: #b45309; }
+/* Gap to portfolio: amber */
+.year-table .col-gap { color: #d97706; font-weight: 600; }
 /* Portfolio withdrawals: orange */
 .year-table .col-withdrawal { color: #c2410c; }
 
@@ -1176,6 +1180,15 @@ header {
   color: #475569;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+/* Scenario success rate line below the deterministic % */
+.scenario-rates {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 /* Positive/negative overrides for tile values */

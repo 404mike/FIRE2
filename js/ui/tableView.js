@@ -49,6 +49,7 @@ export function renderTableView(container, rows, config) {
         <th colspan="5" class="group-header">Balances (${unitLabel})</th>
         <th colspan="2" class="group-header">Contributions / Growth</th>
         <th colspan="3" class="group-header">Guaranteed Income</th>
+        <th colspan="2" class="group-header">Spending / Gap</th>
         <th colspan="4" class="group-header">Portfolio Withdrawals</th>
         <th colspan="3" class="group-header">Totals</th>
         <th class="group-header">Surplus / Deficit</th>
@@ -67,6 +68,8 @@ export function renderTableView(container, rows, config) {
         <th>DB Income</th>
         <th>SP Income</th>
         <th>Total Guaranteed</th>
+        <th title="Annual spending target (inflation-adjusted)">Req. Spending</th>
+        <th title="Gap to Portfolio = Required Spending − Guaranteed Income">Gap to Portfolio</th>
         <th>ISA Drawn</th>
         <th>SIPP Drawn</th>
         <th>Bonds Drawn</th>
@@ -111,6 +114,8 @@ export function renderTableView(container, rows, config) {
     const dbIncome        = d(row, 'dbIncome');
     const stateIncome     = d(row, 'stateIncome');
     const totalGuaranteed = d(row, 'totalPensionIncome');
+    const reqSpending     = d(row, 'requiredSpending');
+    const gapToPortfolio  = Math.max(0, reqSpending - totalGuaranteed);
     const contribs        = d(row, 'totalContributions');
     const growth          = d(row, 'totalGrowth');
     const isaW            = d(row, 'isaWithdrawn');
@@ -141,6 +146,8 @@ export function renderTableView(container, rows, config) {
         <td class="col-guaranteed ${dbIncome > 0 ? '' : 'num-zero'}">${dbIncome > 0 ? formatCurrency(dbIncome) : '—'}</td>
         <td class="col-guaranteed ${stateIncome > 0 ? '' : 'num-zero'}">${stateIncome > 0 ? formatCurrency(stateIncome) : '—'}</td>
         <td class="col-guaranteed ${totalGuaranteed > 0 ? '' : 'num-zero'}">${totalGuaranteed > 0 ? formatCurrency(totalGuaranteed) : '—'}</td>
+        <td class="col-spending ${reqSpending > 0 ? '' : 'num-zero'}">${reqSpending > 0 ? formatCurrency(reqSpending) : '—'}</td>
+        <td class="col-gap ${gapToPortfolio > 0 ? '' : 'num-zero'}">${gapToPortfolio > 0 ? formatCurrency(gapToPortfolio) : '—'}</td>
         <td class="col-withdrawal ${isaW > 0 ? '' : 'num-zero'}">${isaW > 0 ? formatCurrency(isaW) : '—'}</td>
         <td class="col-withdrawal ${sippW > 0 ? '' : 'num-zero'}">${sippW > 0 ? formatCurrency(sippW) : '—'}</td>
         <td class="col-withdrawal ${pbW > 0 ? '' : 'num-zero'}">${pbW > 0 ? formatCurrency(pbW) : '—'}</td>
@@ -223,24 +230,33 @@ function exportToCsv(rows, config, displayMode) {
   const headers = [
     'Year', 'Age', 'Phase',
     `ISA Balance (${unit})`, `SIPP Balance (${unit})`, `Bonds Balance (${unit})`, `Cash Balance (${unit})`, `Net Worth (${unit})`,
-    `Contributions (${unit})`, `Growth (${unit})`,
+    `ISA Contributions (${unit})`, `SIPP Contributions (${unit})`, `Bonds Contributions (${unit})`, `Cash Contributions (${unit})`, `Total Contributions (${unit})`,
+    `Growth (${unit})`,
     `DB Income (${unit})`, `SP Income (${unit})`, `Total Guaranteed Income (${unit})`,
+    `Required Spending (${unit})`, `Gap to Portfolio (${unit})`,
     `ISA Drawn (${unit})`, `SIPP Drawn (${unit})`, `Bonds Drawn (${unit})`, `Cash Drawn (${unit})`, `Portfolio Drawn (${unit})`,
     `Total Income (${unit})`, 'Excess Income (£)',
     `Surplus/Deficit (${unit})`,
     'Note',
   ];
 
-  const dataRows = rows.map(row => [
-    row.year, row.age, row.phase,
-    d(row, 'isaBalance'), d(row, 'sippBalance'), d(row, 'premiumBondsBalance'), d(row, 'cashBalance'), d(row, 'totalNetWorth'),
-    d(row, 'totalContributions'), d(row, 'totalGrowth'),
-    d(row, 'dbIncome'), d(row, 'stateIncome'), d(row, 'totalPensionIncome'),
-    d(row, 'isaWithdrawn'), d(row, 'sippWithdrawn'), d(row, 'premiumBondsWithdrawn'), d(row, 'cashWithdrawn'), d(row, 'totalWithdrawn'),
-    d(row, 'totalIncome'), row.excessIncome,
-    d(row, 'surplusDeficit'),
-    `"${(row.note || '').replace(/"/g, '""')}"`,
-  ].join(','));
+  const dataRows = rows.map(row => {
+    const reqSpending    = d(row, 'requiredSpending');
+    const totalGuaranteed = d(row, 'totalPensionIncome');
+    const gapToPortfolio = Math.max(0, reqSpending - totalGuaranteed);
+    return [
+      row.year, row.age, row.phase,
+      d(row, 'isaBalance'), d(row, 'sippBalance'), d(row, 'premiumBondsBalance'), d(row, 'cashBalance'), d(row, 'totalNetWorth'),
+      d(row, 'isaContribution'), d(row, 'sippContribution'), d(row, 'premiumBondsContribution'), d(row, 'cashContribution'), d(row, 'totalContributions'),
+      d(row, 'totalGrowth'),
+      d(row, 'dbIncome'), d(row, 'stateIncome'), totalGuaranteed,
+      reqSpending, gapToPortfolio,
+      d(row, 'isaWithdrawn'), d(row, 'sippWithdrawn'), d(row, 'premiumBondsWithdrawn'), d(row, 'cashWithdrawn'), d(row, 'totalWithdrawn'),
+      d(row, 'totalIncome'), row.excessIncome,
+      d(row, 'surplusDeficit'),
+      `"${(row.note || '').replace(/"/g, '""')}"`,
+    ].join(',');
+  });
 
   const csv = [assumptions, headers.join(','), ...dataRows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

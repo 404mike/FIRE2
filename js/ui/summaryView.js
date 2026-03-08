@@ -8,6 +8,26 @@
  */
 
 import { formatCurrency, toDisplayValue } from './helpers.js';
+import { runProjection } from '../engine/projectionEngine.js';
+
+// Growth-rate adjustment (pp) for scenario analysis — mirrors outcomeChartView.js
+const SCENARIO_ADJ = 3;
+
+function _applyGrowthAdj(cfg, adj) {
+  return {
+    ...cfg,
+    isa:          { ...cfg.isa,          growthRate: Math.max(0, (cfg.isa.growthRate  || 0) + adj) },
+    sipp:         { ...cfg.sipp,         growthRate: Math.max(0, (cfg.sipp.growthRate || 0) + adj) },
+    premiumBonds: { ...cfg.premiumBonds, prizeRate:  Math.max(0, (cfg.premiumBonds.prizeRate || 0) + adj) },
+    cash:         { ...cfg.cash,         growthRate: Math.max(0, (cfg.cash.growthRate || 0) + adj) },
+  };
+}
+
+function _scenarioSuccess(projRows) {
+  const retirementPhases = projRows.filter(r => r.phase === 'retire' || r.phase === 'bridge');
+  if (!retirementPhases.length) return 100;
+  return Math.round(retirementPhases.filter(r => r.shortfall === 0).length / retirementPhases.length * 100);
+}
 
 /**
  * Render summary tiles into `container`.
@@ -41,6 +61,12 @@ export function renderSummaryView(container, rows, config) {
   const probabilityOfSuccess = totalRetirementYears > 0
     ? Math.round((fullyFundedYears / totalRetirementYears) * 100)
     : 100;
+
+  // ── Scenario success rates (P10 / P50 / P90) ─────────────────────────
+  // Run two additional lightweight projections at ±3 pp growth to give a
+  // quick sense of plan robustness without full Monte Carlo.
+  const p10Success = _scenarioSuccess(runProjection(_applyGrowthAdj(config, -SCENARIO_ADJ)));
+  const p90Success = _scenarioSuccess(runProjection(_applyGrowthAdj(config, +SCENARIO_ADJ)));
 
   // ── Metric 2: Worst-year balance ──────────────────────────────────────
   // Minimum net worth (display-mode aware) across all retirement years
@@ -163,7 +189,7 @@ export function renderSummaryView(container, rows, config) {
       <div class="snapshot-tile tile-bridge">
         <div class="tile-label">Bridge Period (age ${bridgeStartAge}–${bridgeEndAge})</div>
         <div class="tile-value">${formatCurrency(bridgeTotalSpending)}</div>
-        <div class="tile-sub">Portfolio spending before guaranteed income starts. Funded by: ${bridgeFunds}</div>
+        <div class="tile-sub">Portfolio-funded spending before guaranteed income starts at age ${bridgeEndAge}. Funded by: ${bridgeFunds}</div>
       </div>
     `;
   }
@@ -198,13 +224,16 @@ export function renderSummaryView(container, rows, config) {
       <div class="snapshot-tile ${healthClass}">
         <div class="tile-label">Plan Success <span class="model-badge">Deterministic</span></div>
         <div class="tile-value">${probabilityOfSuccess}%</div>
-        <div class="tile-sub">${
-          probabilityOfSuccess === 100
-            ? `Fully funded to age ${config.endAge} — no shortfall in any year`
-            : firstShortfallAge !== null
-              ? `First shortfall at age ${firstShortfallAge} (${fullyFundedYears}/${totalRetirementYears} years funded)`
-              : 'Spending exceeds income'
-        }</div>
+        <div class="tile-sub">
+          ${
+            probabilityOfSuccess === 100
+              ? `Fully funded to age ${config.endAge} — no shortfall in any year`
+              : firstShortfallAge !== null
+                ? `First shortfall at age ${firstShortfallAge} (${fullyFundedYears}/${totalRetirementYears} years funded)`
+                : 'Spending exceeds income'
+          }
+          <span class="scenario-rates">Pessimistic (−3 pp): ${p10Success}% · Optimistic (+3 pp): ${p90Success}%</span>
+        </div>
       </div>
       <div class="snapshot-tile ${worstYearBalance <= 0 ? 'tile-negative' : ''}">
         <div class="tile-label">Worst-Year Balance ${modeTag}</div>
