@@ -11,6 +11,7 @@
 import { formatCurrency, toDisplayValue } from './helpers.js';
 import { setOverride } from '../state/store.js';
 import { ACCOUNT_DEFS } from './accountOverrideModal.js';
+import { calcAutoFillDrawdown } from '../engine/autoFillDrawdown.js';
 
 /**
  * Render the year-by-year projection table.
@@ -54,6 +55,7 @@ export function renderTableView(container, rows, config) {
         <th colspan="3" class="group-header">Totals</th>
         <th class="group-header">Surplus / Deficit</th>
         <th class="group-header group-override">Note</th>
+        <th class="group-header group-override">Actions</th>
       </tr>
       <tr>
         <th class="col-pin">Year / Age</th>
@@ -79,6 +81,7 @@ export function renderTableView(container, rows, config) {
         <th>Excess Income</th>
         <th>Surplus / Deficit</th>
         <th>Note</th>
+        <th>Actions</th>
       </tr>
     </thead>
   `;
@@ -110,6 +113,9 @@ export function renderTableView(container, rows, config) {
     const overrideIndicator = yearHasOverride
       ? '<span class="row-override-dot" title="Has account overrides this year">●</span>'
       : '';
+
+    // Track whether auto-fill drawdown overrides are currently set for this year
+    const hasAutoFillOverride = override.isaCustomDrawdown != null || override.sippCustomDrawdown != null;
 
     const dbIncome        = d(row, 'dbIncome');
     const stateIncome     = d(row, 'stateIncome');
@@ -157,6 +163,9 @@ export function renderTableView(container, rows, config) {
         <td class="${excess > 0 ? 'num-warning' : 'num-zero'}">${excess > 0 ? formatCurrency(excess) : '—'}</td>
         <td class="${sdClass}">${sdDisplay}</td>
         <td><input class="note-input" type="text" data-year="${row.year}" data-field="note" value="${override.note || ''}" placeholder="Note…" /></td>
+        <td class="col-actions">
+          <button class="btn btn-primary btn-sm autofill-btn" data-year="${row.year}" title="Calculate ISA &amp; SIPP draws to meet required spending">⚡ Auto-fill</button>${hasAutoFillOverride ? `\n          <button class="btn btn-secondary btn-sm clear-autofill-btn" data-year="${row.year}" title="Clear auto-fill drawdown overrides">✕ Clear</button>` : ''}
+        </td>
       </tr>
     `;
   }).join('');
@@ -179,6 +188,32 @@ export function renderTableView(container, rows, config) {
       const year  = parseInt(input.dataset.year, 10);
       const field = input.dataset.field;
       setOverride(year, { [field]: input.value });
+    });
+  });
+
+  // Auto-fill drawdown button listeners
+  container.querySelectorAll('.autofill-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const year = parseInt(btn.dataset.year, 10);
+      const row  = rows.find(r => r.year === year);
+      if (!row) return;
+      const { isaExtraDraw, sippExtraDraw } = calcAutoFillDrawdown(row, config);
+      setOverride(year, {
+        isaCustomDrawdown:  isaExtraDraw  > 0 ? isaExtraDraw  : null,
+        sippCustomDrawdown: sippExtraDraw > 0 ? sippExtraDraw : null,
+        // Preserve any user-written note; only supply a default when none exists.
+        note: config.overrides?.[year]?.note || 'Auto-fill drawdown',
+      });
+      _showToast('Drawdown auto-filled for this year');
+    });
+  });
+
+  // Clear auto-fill override button listeners
+  container.querySelectorAll('.clear-autofill-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const year = parseInt(btn.dataset.year, 10);
+      setOverride(year, { isaCustomDrawdown: null, sippCustomDrawdown: null });
+      _showToast('Drawdown override cleared');
     });
   });
 
@@ -266,4 +301,21 @@ function exportToCsv(rows, config, displayMode) {
   a.download = `fire2-projection-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Show a brief toast notification at the bottom of the viewport.
+ * Requires a `#toastContainer` element to be present in the HTML.
+ * Falls back silently if the element is not found in the DOM.
+ * @param {string} message
+ * @param {number} [duration=3000]
+ */
+function _showToast(message, duration = 3000) {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), duration);
 }
