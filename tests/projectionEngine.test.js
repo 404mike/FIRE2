@@ -968,3 +968,74 @@ test('debug mode: invariantsPassed and accounts are still present', () => {
   assert.strictEqual(d.invariantsPassed, true, 'invariantsPassed must be true');
   assert.ok(d.accounts && typeof d.accounts === 'object', 'accounts ledger must be present');
 });
+
+// ── New fields: surplus & totalContributions ─────────────────────────────────
+
+test('surplus is positive when pension income exceeds spending', () => {
+  // DB pension £10,000/yr covers all of £5,000 spending → surplus £5,000
+  const config = makeConfig({ balance: 100000, growthRate: 0, drawdownRate: 0, spending: 5000 });
+  config.dbPension = { enabled: true, annualIncome: 10000, startAge: 60 };
+  const rows = runProjection(config);
+  // Spending gap = max(0, 5000 - 10000) = 0; no portfolio withdrawal
+  assert.strictEqual(rows[0].isaWithdrawn, 0);
+  assert.strictEqual(rows[0].shortfall,    0);
+  // surplus = totalIncome - spending = 10000 - 5000 = 5000
+  assert.strictEqual(rows[0].surplus, 5000);
+});
+
+test('surplus is zero when spending exactly equals total income', () => {
+  // DB pension exactly matches spending → no surplus, no shortfall
+  const config = makeConfig({ balance: 100000, growthRate: 0, drawdownRate: 0, spending: 10000 });
+  config.dbPension = { enabled: true, annualIncome: 10000, startAge: 60 };
+  const rows = runProjection(config);
+  assert.strictEqual(rows[0].shortfall, 0);
+  assert.strictEqual(rows[0].surplus,   0);
+});
+
+test('surplus is zero during accumulation (spending = 0)', () => {
+  const config = makeConfig({
+    balance: 50000, growthRate: 5, drawdownRate: 0,
+    currentAge: 40, retirementAge: 65, endAge: 41,
+  });
+  const rows = runProjection(config);
+  assert.strictEqual(rows[0].phase,    'accumulate');
+  assert.strictEqual(rows[0].surplus,  0);
+  assert.strictEqual(rows[0].shortfall, 0);
+});
+
+test('totalContributions reflects ISA and SIPP contributions in accumulation', () => {
+  const config = makeConfig({
+    balance: 0, growthRate: 0, drawdownRate: 0,
+    currentAge: 40, retirementAge: 65, endAge: 41,
+  });
+  config.isa.annualContribution  = 10000;
+  config.sipp.enabled            = true;
+  config.sipp.balance            = 0;
+  config.sipp.growthRate         = 0;
+  config.sipp.annualContribution = 5000;
+  const rows = runProjection(config);
+  assert.strictEqual(rows[0].totalContributions, 15000);
+});
+
+test('totalContributions is zero in retirement (no regular contributions)', () => {
+  // Retirement: no contributions; only drawdown from ISA
+  const config = makeConfig({ balance: 100000, growthRate: 0, drawdownRate: 0, spending: 10000 });
+  const rows = runProjection(config);
+  assert.strictEqual(rows[0].phase,              'retire');
+  assert.strictEqual(rows[0].totalContributions, 0);
+});
+
+// ── Cashflow order: contributions earn growth in the same year ───────────────
+
+test('accumulation: contributions are made before growth (contributions earn growth same year)', () => {
+  // Opening: £100,000; contribution: £10,000; post-contribution: £110,000
+  // 5% growth on £110,000 = £5,500; closing: £115,500
+  const config = makeConfig({
+    balance: 100000, growthRate: 5, drawdownRate: 0,
+    currentAge: 40, retirementAge: 65, endAge: 41,
+  });
+  config.isa.annualContribution = 10000;
+  const rows = runProjection(config);
+  assert.strictEqual(rows[0].isaContribution, 10000);
+  assert.strictEqual(rows[0].isaBalance,      115500);
+});

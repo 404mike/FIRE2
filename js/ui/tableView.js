@@ -41,11 +41,12 @@ export function renderTableView(container, rows, config) {
       <tr class="thead-group">
         <th colspan="2"></th>
         <th colspan="5" class="group-header">Balances (${unitLabel})</th>
-        <th colspan="2" class="group-header">Pension Income</th>
-        <th colspan="4" class="group-header">Drawdown per Account</th>
+        <th colspan="1" class="group-header">Contributions</th>
+        <th colspan="2" class="group-header">Guaranteed Income</th>
+        <th colspan="4" class="group-header">Portfolio Withdrawals</th>
         <th colspan="2" class="group-header">Totals</th>
         <th class="group-header">Excess</th>
-        <th class="group-header">Shortfall</th>
+        <th colspan="2" class="group-header">Surplus / Shortfall</th>
         <th class="group-header group-override">Note</th>
       </tr>
       <tr>
@@ -56,15 +57,17 @@ export function renderTableView(container, rows, config) {
         <th>Bonds</th>
         <th>Cash</th>
         <th>Net Worth</th>
+        <th>Contributions</th>
         <th>DB Income</th>
         <th>SP Income</th>
         <th>ISA Drawn</th>
         <th>SIPP Drawn</th>
         <th>Bonds Drawn</th>
         <th>Cash Drawn</th>
-        <th>Total Withdrawn</th>
+        <th>Portfolio Drawn</th>
         <th>Total Income</th>
         <th>Excess Income</th>
+        <th>Surplus</th>
         <th>Shortfall</th>
         <th>Note</th>
       </tr>
@@ -98,12 +101,14 @@ export function renderTableView(container, rows, config) {
 
     const dbIncome    = d(row, 'dbIncome');
     const stateIncome = d(row, 'stateIncome');
+    const contribs    = d(row, 'totalContributions');
     const isaW        = d(row, 'isaWithdrawn');
     const sippW       = d(row, 'sippWithdrawn');
     const pbW         = d(row, 'premiumBondsWithdrawn');
     const cashW       = d(row, 'cashWithdrawn');
     const totalW      = d(row, 'totalWithdrawn');
     const totalInc    = d(row, 'totalIncome');
+    const surplus     = d(row, 'surplus');
     const shortfall   = d(row, 'shortfall');
     // excessIncome is not inflation-sensitive (it's the nominal excess flag)
     const excess      = row.excessIncome;
@@ -117,6 +122,7 @@ export function renderTableView(container, rows, config) {
         <td>${formatCurrency(d(row, 'premiumBondsBalance'))}</td>
         <td>${formatCurrency(d(row, 'cashBalance'))}</td>
         <td><strong>${formatCurrency(d(row, 'totalNetWorth'))}</strong></td>
+        <td class="${contribs > 0 ? 'num-positive' : 'num-zero'}">${contribs > 0 ? formatCurrency(contribs) : '—'}</td>
         <td class="${dbIncome > 0 ? 'num-positive' : 'num-zero'}">${dbIncome > 0 ? formatCurrency(dbIncome) : '—'}</td>
         <td class="${stateIncome > 0 ? 'num-positive' : 'num-zero'}">${stateIncome > 0 ? formatCurrency(stateIncome) : '—'}</td>
         <td class="${isaW > 0 ? 'num-negative' : 'num-zero'}">${isaW > 0 ? formatCurrency(isaW) : '—'}</td>
@@ -126,6 +132,7 @@ export function renderTableView(container, rows, config) {
         <td class="${totalW > 0 ? 'num-negative' : 'num-zero'}">${totalW > 0 ? formatCurrency(totalW) : '—'}</td>
         <td class="${totalInc > 0 ? 'num-positive' : 'num-zero'}">${totalInc > 0 ? formatCurrency(totalInc) : '—'}</td>
         <td class="${excess > 0 ? 'num-warning' : 'num-zero'}">${excess > 0 ? formatCurrency(excess) : '—'}</td>
+        <td class="${surplus > 0 ? 'num-positive' : 'num-zero'}">${surplus > 0 ? formatCurrency(surplus) : '—'}</td>
         <td class="${shortfall > 0 ? 'num-negative' : 'num-zero'}">${shortfall > 0 ? formatCurrency(shortfall) : '—'}</td>
         <td><input class="note-input" type="text" data-year="${row.year}" data-field="note" value="${override.note || ''}" placeholder="Note…" /></td>
       </tr>
