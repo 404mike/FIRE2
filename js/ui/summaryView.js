@@ -30,30 +30,30 @@ export function renderSummaryView(container, rows, config) {
   // Final row
   const finalRow = rows[rows.length - 1];
 
-  // Retirement rows only (for retirement-phase metrics)
-  const retirementRows = rows.filter(r => r.phase === 'retire' || r.phase === 'bridge');
-  const totalRetirementYears = retirementRows.length;
+  // Retirement + bridge rows (for post-retirement metrics)
+  const postRetirementRows = rows.filter(r => r.phase === 'retire' || r.phase === 'bridge');
+  const totalRetirementYears = postRetirementRows.length;
 
   // ── Metric 1: Probability of success ──────────────────────────────────
   // Deterministic model: % of retirement + bridge years where spending is
   // fully covered (no shortfall).
-  const fullyFundedYears = retirementRows.filter(r => r.shortfall === 0).length;
+  const fullyFundedYears = postRetirementRows.filter(r => r.shortfall === 0).length;
   const probabilityOfSuccess = totalRetirementYears > 0
     ? Math.round((fullyFundedYears / totalRetirementYears) * 100)
     : 100;
 
   // ── Metric 2: Worst-year balance ──────────────────────────────────────
   // Minimum net worth (display-mode aware) across all retirement years
-  const worstYearBalance = retirementRows.length > 0
-    ? Math.min(...retirementRows.map(r => toDisplayValue(r, 'totalNetWorth', displayMode)))
+  const worstYearBalance = postRetirementRows.length > 0
+    ? Math.min(...postRetirementRows.map(r => toDisplayValue(r, 'totalNetWorth', displayMode)))
     : toDisplayValue(retirementRow, 'totalNetWorth', displayMode);
 
   // ── Metric 3: First shortfall year ────────────────────────────────────
-  const firstShortfallRow = retirementRows.find(r => r.shortfall > 0);
+  const firstShortfallRow = postRetirementRows.find(r => r.shortfall > 0);
   const firstShortfallAge  = firstShortfallRow ? firstShortfallRow.age : null;
 
   // ── FI Age: first retirement year where no spending shortfall exists ──
-  const fiRow = retirementRows.find(r => r.shortfall === 0);
+  const fiRow = postRetirementRows.find(r => r.shortfall === 0);
   const fiAge = fiRow ? fiRow.age : null;
 
   // ── Monthly target spend (always in today's £ regardless of displayMode) ──
@@ -214,7 +214,7 @@ export function renderSummaryView(container, rows, config) {
       <div class="snapshot-tile ${firstShortfallAge !== null ? 'tile-negative' : ''}">
         <div class="tile-label">First Shortfall</div>
         <div class="tile-value">${firstShortfallAge !== null ? `Age ${firstShortfallAge}` : '—'}</div>
-        <div class="tile-sub">${firstShortfallAge !== null ? `First year available funds &lt; required spending at year-end` : 'No shortfall projected'}</div>
+        <div class="tile-sub">${firstShortfallAge !== null ? `First year spending cannot be fully covered at year-end` : 'No shortfall projected'}</div>
       </div>
       <div class="snapshot-tile">
         <div class="tile-label">Final Net Worth (Age ${config.endAge}) ${modeTag}</div>
