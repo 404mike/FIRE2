@@ -2,7 +2,7 @@
  * tableView.js — Renders the yearly projection table with editable overrides
  */
 
-import { formatCurrency } from './helpers.js';
+import { formatCurrency, toDisplayValue } from './helpers.js';
 import { setOverride } from '../state/store.js';
 import { ACCOUNT_DEFS } from './accountOverrideModal.js';
 
@@ -19,6 +19,10 @@ export function renderTableView(container, rows, config) {
     return;
   }
 
+  const displayMode = config.displayMode || 'real';
+  const isReal = displayMode === 'real';
+  const unitLabel = isReal ? "Today's £" : 'Nominal £';
+
   const retirementYear = new Date().getFullYear() + (config.retirementAge - config.currentAge);
   const dbStartYear    = config.dbPension.enabled
     ? new Date().getFullYear() + (config.dbPension.startAge - config.currentAge)
@@ -29,11 +33,14 @@ export function renderTableView(container, rows, config) {
 
   const ov = config.overrides || {};
 
+  // Helper: get display value for a field in a row
+  const d = (row, field) => toDisplayValue(row, field, displayMode);
+
   const thead = `
     <thead>
       <tr class="thead-group">
         <th colspan="2"></th>
-        <th colspan="5" class="group-header">Balances</th>
+        <th colspan="5" class="group-header">Balances (${unitLabel})</th>
         <th colspan="2" class="group-header">Pension Income</th>
         <th colspan="4" class="group-header">Drawdown per Account</th>
         <th colspan="2" class="group-header">Totals</th>
@@ -44,21 +51,21 @@ export function renderTableView(container, rows, config) {
       <tr>
         <th>Year / Age</th>
         <th>Phase</th>
-        <th>ISA £</th>
-        <th>SIPP £</th>
-        <th>Bonds £</th>
-        <th>Cash £</th>
-        <th>Net Worth £</th>
-        <th>DB Income £</th>
-        <th>SP Income £</th>
-        <th>ISA Drawn £</th>
-        <th>SIPP Drawn £</th>
-        <th>Bonds Drawn £</th>
-        <th>Cash Drawn £</th>
-        <th>Total Withdrawn £</th>
-        <th>Total Income £</th>
-        <th>Excess Income £</th>
-        <th>Shortfall £</th>
+        <th>ISA</th>
+        <th>SIPP</th>
+        <th>Bonds</th>
+        <th>Cash</th>
+        <th>Net Worth</th>
+        <th>DB Income</th>
+        <th>SP Income</th>
+        <th>ISA Drawn</th>
+        <th>SIPP Drawn</th>
+        <th>Bonds Drawn</th>
+        <th>Cash Drawn</th>
+        <th>Total Withdrawn</th>
+        <th>Total Income</th>
+        <th>Excess Income</th>
+        <th>Shortfall</th>
         <th>Note</th>
       </tr>
     </thead>
@@ -89,25 +96,37 @@ export function renderTableView(container, rows, config) {
       ? '<span class="row-override-dot" title="Has account overrides this year">●</span>'
       : '';
 
+    const dbIncome    = d(row, 'dbIncome');
+    const stateIncome = d(row, 'stateIncome');
+    const isaW        = d(row, 'isaWithdrawn');
+    const sippW       = d(row, 'sippWithdrawn');
+    const pbW         = d(row, 'premiumBondsWithdrawn');
+    const cashW       = d(row, 'cashWithdrawn');
+    const totalW      = d(row, 'totalWithdrawn');
+    const totalInc    = d(row, 'totalIncome');
+    const shortfall   = d(row, 'shortfall');
+    // excessIncome is not inflation-sensitive (it's the nominal excess flag)
+    const excess      = row.excessIncome;
+
     return `
       <tr class="${rowClass}" data-year="${row.year}">
         <td>${row.year} / ${row.age} ${overrideIndicator}</td>
         <td>${phase}</td>
-        <td>${formatCurrency(row.isaBalance)}</td>
-        <td>${formatCurrency(row.sippBalance)}</td>
-        <td>${formatCurrency(row.premiumBondsBalance)}</td>
-        <td>${formatCurrency(row.cashBalance)}</td>
-        <td><strong>${formatCurrency(row.totalNetWorth)}</strong></td>
-        <td class="${row.dbIncome > 0 ? 'num-positive' : 'num-zero'}">${row.dbIncome > 0 ? formatCurrency(row.dbIncome) : '—'}</td>
-        <td class="${row.stateIncome > 0 ? 'num-positive' : 'num-zero'}">${row.stateIncome > 0 ? formatCurrency(row.stateIncome) : '—'}</td>
-        <td class="${row.isaWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.isaWithdrawn > 0 ? formatCurrency(row.isaWithdrawn) : '—'}</td>
-        <td class="${row.sippWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.sippWithdrawn > 0 ? formatCurrency(row.sippWithdrawn) : '—'}</td>
-        <td class="${row.premiumBondsWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.premiumBondsWithdrawn > 0 ? formatCurrency(row.premiumBondsWithdrawn) : '—'}</td>
-        <td class="${row.cashWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.cashWithdrawn > 0 ? formatCurrency(row.cashWithdrawn) : '—'}</td>
-        <td class="${row.totalWithdrawn > 0 ? 'num-negative' : 'num-zero'}">${row.totalWithdrawn > 0 ? formatCurrency(row.totalWithdrawn) : '—'}</td>
-        <td class="${row.totalIncome > 0 ? 'num-positive' : 'num-zero'}">${row.totalIncome > 0 ? formatCurrency(row.totalIncome) : '—'}</td>
-        <td class="${row.excessIncome > 0 ? 'num-warning' : 'num-zero'}">${row.excessIncome > 0 ? formatCurrency(row.excessIncome) : '—'}</td>
-        <td class="${row.shortfall > 0 ? 'num-negative' : 'num-zero'}">${row.shortfall > 0 ? formatCurrency(row.shortfall) : '—'}</td>
+        <td>${formatCurrency(d(row, 'isaBalance'))}</td>
+        <td>${formatCurrency(d(row, 'sippBalance'))}</td>
+        <td>${formatCurrency(d(row, 'premiumBondsBalance'))}</td>
+        <td>${formatCurrency(d(row, 'cashBalance'))}</td>
+        <td><strong>${formatCurrency(d(row, 'totalNetWorth'))}</strong></td>
+        <td class="${dbIncome > 0 ? 'num-positive' : 'num-zero'}">${dbIncome > 0 ? formatCurrency(dbIncome) : '—'}</td>
+        <td class="${stateIncome > 0 ? 'num-positive' : 'num-zero'}">${stateIncome > 0 ? formatCurrency(stateIncome) : '—'}</td>
+        <td class="${isaW > 0 ? 'num-negative' : 'num-zero'}">${isaW > 0 ? formatCurrency(isaW) : '—'}</td>
+        <td class="${sippW > 0 ? 'num-negative' : 'num-zero'}">${sippW > 0 ? formatCurrency(sippW) : '—'}</td>
+        <td class="${pbW > 0 ? 'num-negative' : 'num-zero'}">${pbW > 0 ? formatCurrency(pbW) : '—'}</td>
+        <td class="${cashW > 0 ? 'num-negative' : 'num-zero'}">${cashW > 0 ? formatCurrency(cashW) : '—'}</td>
+        <td class="${totalW > 0 ? 'num-negative' : 'num-zero'}">${totalW > 0 ? formatCurrency(totalW) : '—'}</td>
+        <td class="${totalInc > 0 ? 'num-positive' : 'num-zero'}">${totalInc > 0 ? formatCurrency(totalInc) : '—'}</td>
+        <td class="${excess > 0 ? 'num-warning' : 'num-zero'}">${excess > 0 ? formatCurrency(excess) : '—'}</td>
+        <td class="${shortfall > 0 ? 'num-negative' : 'num-zero'}">${shortfall > 0 ? formatCurrency(shortfall) : '—'}</td>
         <td><input class="note-input" type="text" data-year="${row.year}" data-field="note" value="${override.note || ''}" placeholder="Note…" /></td>
       </tr>
     `;

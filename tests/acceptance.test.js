@@ -383,3 +383,76 @@ test('Acceptance Test 3: cash custom drawdown is capped at available balance', (
   assert.strictEqual(row.cashWithdrawn, 10000, 'Withdrawn must be capped at available balance');
   assert.strictEqual(row.cashBalance, 0, 'Balance must not go below zero');
 });
+
+// ── Premium Bonds Mode A (prize-to-cash) ────────────────────────────────────
+
+test('PB Mode A: prize paid out to cash — PB balance unchanged, cash increases', () => {
+  const config = makeConfig({
+    pbBalance:    20000,
+    pbRate:       4,          // 4% = £800 prize
+    drawdownRate: 0,
+    cashEnabled:  true,
+    cashBalance:  5000,
+  });
+  // compoundMode defaults to false (Mode A) in DEFAULT_STATE.
+  // The acceptance test config factory doesn't set compoundMode, so we ensure it's false:
+  config.premiumBonds.compoundMode = false;
+
+  const rows = runProjection(config);
+  const row = rows[0];
+
+  // PB balance should stay at 20000 (prize paid out, not compounded)
+  assert.strictEqual(row.premiumBondsBalance, 20000, 'PB balance unchanged in Mode A');
+  // Cash should have received the £800 prize
+  assert.strictEqual(row.cashBalance, 5800, 'Cash increased by prize amount in Mode A');
+});
+
+test('PB Mode B: prize compounds inside PB — balance grows, cash unaffected', () => {
+  const config = makeConfig({
+    pbBalance:    20000,
+    pbRate:       4,          // 4% = £800 prize
+    drawdownRate: 0,
+    cashEnabled:  true,
+    cashBalance:  5000,
+  });
+  config.premiumBonds.compoundMode = true;
+
+  const rows = runProjection(config);
+  const row = rows[0];
+
+  // PB balance should grow by the prize
+  assert.strictEqual(row.premiumBondsBalance, 20800, 'PB balance grows in Mode B');
+  // Cash should be unchanged (no prize transfer)
+  assert.strictEqual(row.cashBalance, 5000, 'Cash unchanged in Mode B');
+});
+
+test('PB Mode A: invariants hold when prize transferred to cash', () => {
+  const config = makeConfig({
+    pbBalance:    30000,
+    pbRate:       3,
+    drawdownRate: 0,
+    cashEnabled:  true,
+    cashBalance:  0,
+  });
+  config.premiumBonds.compoundMode = false;
+
+  // runProjection throws if invariants are violated, so no error = pass
+  assert.doesNotThrow(() => runProjection(config));
+});
+
+test('PB Mode A: prize not added to cash when cash is disabled', () => {
+  const config = makeConfig({
+    pbBalance:    20000,
+    pbRate:       5,
+    drawdownRate: 0,
+    cashEnabled:  false,
+  });
+  config.premiumBonds.compoundMode = false;
+
+  const rows = runProjection(config);
+  const row = rows[0];
+
+  // PB balance stays flat; cash is disabled so prize is disbursed outside model
+  assert.strictEqual(row.premiumBondsBalance, 20000, 'PB balance unchanged (Mode A, cash disabled)');
+  assert.strictEqual(row.cashBalance, 0, 'Cash stays at 0 when disabled');
+});

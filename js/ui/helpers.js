@@ -33,3 +33,27 @@ export function numClass(value) {
   if (value < 0) return 'num-negative';
   return 'num-zero';
 }
+
+/**
+ * Select the display value from a projection row based on displayMode.
+ *
+ * When `displayMode` is "real", returns the pre-computed real (inflation-adjusted)
+ * field if one exists (e.g. "realIsaBalance" for "isaBalance"), otherwise divides
+ * the nominal value by inflationFactor.
+ *
+ * When `displayMode` is "nominal" (or any other value), the nominal value is
+ * returned unchanged.
+ *
+ * @param {object} row          Projection row
+ * @param {string} field        Nominal field name (e.g. "isaBalance")
+ * @param {string} displayMode  "real" | "nominal"
+ * @returns {number}
+ */
+export function toDisplayValue(row, field, displayMode) {
+  if (displayMode !== 'real') return row[field];
+  // Prefer the pre-computed real field if the engine has already provided it
+  const realField = 'real' + field.charAt(0).toUpperCase() + field.slice(1);
+  if (realField in row) return row[realField];
+  // Fallback: divide by inflationFactor
+  return row.inflationFactor ? row[field] / row.inflationFactor : row[field];
+}

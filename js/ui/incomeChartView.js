@@ -4,7 +4,10 @@
  * Shows per-year (retirement only) breakdown of income:
  *   ISA drawdown | SIPP drawdown | PB drawdown | Cash drawdown | DB pension | State pension
  * Overlaid with a line for required spending.
+ * When config.displayMode === 'real', all values are in today's purchasing power.
  */
+
+import { toDisplayValue } from './helpers.js';
 
 let _incomeChart = null;
 
@@ -33,48 +36,51 @@ export function renderIncomeChart(canvas, rows, config) {
   const retRows = rows.filter(r => r.phase === 'retire');
   if (retRows.length === 0) return;
 
+  const displayMode = config.displayMode || 'real';
+  const isReal = displayMode === 'real';
+
   const labels = retRows.map(r => r.year);
   const ageMap = Object.fromEntries(retRows.map(r => [r.year, r.age]));
 
   const datasets = [
     {
       label: 'ISA',
-      data: retRows.map(r => Math.round(r.isaWithdrawn || 0)),
+      data: retRows.map(r => Math.round(toDisplayValue(r, 'isaWithdrawn', displayMode) || 0)),
       backgroundColor: COLOURS.isa,
       stack: 'income',
       order: 2,
     },
     {
       label: 'SIPP',
-      data: retRows.map(r => Math.round(r.sippWithdrawn || 0)),
+      data: retRows.map(r => Math.round(toDisplayValue(r, 'sippWithdrawn', displayMode) || 0)),
       backgroundColor: COLOURS.sipp,
       stack: 'income',
       order: 2,
     },
     {
       label: 'Premium Bonds',
-      data: retRows.map(r => Math.round(r.premiumBondsWithdrawn || 0)),
+      data: retRows.map(r => Math.round(toDisplayValue(r, 'premiumBondsWithdrawn', displayMode) || 0)),
       backgroundColor: COLOURS.premiumBonds,
       stack: 'income',
       order: 2,
     },
     {
       label: 'Cash',
-      data: retRows.map(r => Math.round(r.cashWithdrawn || 0)),
+      data: retRows.map(r => Math.round(toDisplayValue(r, 'cashWithdrawn', displayMode) || 0)),
       backgroundColor: COLOURS.cash,
       stack: 'income',
       order: 2,
     },
     {
       label: 'DB Pension',
-      data: retRows.map(r => Math.round(r.dbIncome || 0)),
+      data: retRows.map(r => Math.round(toDisplayValue(r, 'dbIncome', displayMode) || 0)),
       backgroundColor: COLOURS.dbPension,
       stack: 'income',
       order: 2,
     },
     {
       label: 'State Pension',
-      data: retRows.map(r => Math.round(r.stateIncome || 0)),
+      data: retRows.map(r => Math.round(toDisplayValue(r, 'stateIncome', displayMode) || 0)),
       backgroundColor: COLOURS.statePension,
       stack: 'income',
       order: 2,
@@ -83,7 +89,7 @@ export function renderIncomeChart(canvas, rows, config) {
     {
       label: 'Required Spending',
       type: 'line',
-      data: retRows.map(r => Math.round(r.requiredSpending || 0)),
+      data: retRows.map(r => Math.round(toDisplayValue(r, 'requiredSpending', displayMode) || 0)),
       borderColor: COLOURS.spending,
       backgroundColor: 'transparent',
       borderWidth: 2,
@@ -138,6 +144,12 @@ export function renderIncomeChart(canvas, rows, config) {
         },
         y: {
           stacked: true,
+          title: {
+            display: true,
+            text: isReal ? "Today's £ (real terms)" : 'Nominal £',
+            font: { size: 10 },
+            color: '#6b7280',
+          },
           ticks: {
             font: { size: 10 },
             color: '#6b7280',

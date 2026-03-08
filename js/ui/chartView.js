@@ -9,7 +9,11 @@
  * - Cash balance
  *
  * Vertical annotations mark retirement and pension start years.
+ * When config.displayMode === 'real', all monetary values are shown
+ * in today's purchasing power (inflation-adjusted).
  */
+
+import { toDisplayValue } from './helpers.js';
 
 let _chart = null;
 
@@ -37,6 +41,9 @@ export function renderChart(canvas, rows, config, visibility = {}) {
   const ageMap  = Object.fromEntries(rows.map(r => [r.year, r.age]));
   const defVis  = { total: true, isa: true, sipp: true, premiumBonds: true, cash: false, ...visibility };
 
+  const displayMode = config.displayMode || 'real';
+  const isReal = displayMode === 'real';
+
   const retirementYear = new Date().getFullYear() + (config.retirementAge - config.currentAge);
   const dbStartYear    = config.dbPension.enabled
     ? new Date().getFullYear() + (config.dbPension.startAge - config.currentAge)
@@ -48,7 +55,7 @@ export function renderChart(canvas, rows, config, visibility = {}) {
   const datasets = [
     {
       label: 'Total Net Worth',
-      data: rows.map(r => r.totalNetWorth),
+      data: rows.map(r => toDisplayValue(r, 'totalNetWorth', displayMode)),
       borderColor: COLOURS.total.border,
       backgroundColor: COLOURS.total.background,
       borderWidth: 2.5,
@@ -59,7 +66,7 @@ export function renderChart(canvas, rows, config, visibility = {}) {
     },
     {
       label: 'ISA',
-      data: rows.map(r => r.isaBalance),
+      data: rows.map(r => toDisplayValue(r, 'isaBalance', displayMode)),
       borderColor: COLOURS.isa.border,
       backgroundColor: COLOURS.isa.background,
       borderWidth: 1.5,
@@ -70,7 +77,7 @@ export function renderChart(canvas, rows, config, visibility = {}) {
     },
     {
       label: 'SIPP',
-      data: rows.map(r => r.sippBalance),
+      data: rows.map(r => toDisplayValue(r, 'sippBalance', displayMode)),
       borderColor: COLOURS.sipp.border,
       backgroundColor: COLOURS.sipp.background,
       borderWidth: 1.5,
@@ -81,7 +88,7 @@ export function renderChart(canvas, rows, config, visibility = {}) {
     },
     {
       label: 'Premium Bonds',
-      data: rows.map(r => r.premiumBondsBalance),
+      data: rows.map(r => toDisplayValue(r, 'premiumBondsBalance', displayMode)),
       borderColor: COLOURS.premiumBonds.border,
       backgroundColor: COLOURS.premiumBonds.background,
       borderWidth: 1.5,
@@ -92,7 +99,7 @@ export function renderChart(canvas, rows, config, visibility = {}) {
     },
     {
       label: 'Cash',
-      data: rows.map(r => r.cashBalance),
+      data: rows.map(r => toDisplayValue(r, 'cashBalance', displayMode)),
       borderColor: COLOURS.cash.border,
       backgroundColor: COLOURS.cash.background,
       borderWidth: 1.5,
@@ -217,6 +224,12 @@ export function renderChart(canvas, rows, config, visibility = {}) {
           grid: { color: '#f0f2f5' },
         },
         y: {
+          title: {
+            display: true,
+            text: isReal ? "Today's £ (real terms)" : 'Nominal £',
+            font: { size: 10 },
+            color: '#6b7280',
+          },
           ticks: {
             font: { size: 10 },
             color: '#6b7280',

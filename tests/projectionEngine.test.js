@@ -917,10 +917,10 @@ test('debug mode: flat sipp ledger fields are correct', () => {
   assert.strictEqual(d.sippBalance,  82400, 'sippBalance should equal opening + growth');
 });
 
-test('debug mode: flat premiumBonds ledger fields are correct', () => {
+test('debug mode: flat premiumBonds ledger fields are correct (compoundMode=true)', () => {
   const config = makeConfig({ balance: 0, growthRate: 0, drawdownRate: 0 });
   config.isa = { ...config.isa, enabled: false };
-  config.premiumBonds = { enabled: true, balance: 20000, prizeRate: 4, drawdownStartAge: null };
+  config.premiumBonds = { enabled: true, balance: 20000, prizeRate: 4, drawdownStartAge: null, compoundMode: true };
   config.drawdown = { rate: 0 };
   const rows = runProjection(config, { debug: true });
   const d = rows[0]._debug;

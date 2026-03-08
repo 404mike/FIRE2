@@ -22,7 +22,7 @@
  * }
  */
 
-import { getPensionIncome } from './pensionEngine.js';
+import { getPensionIncome, computePensionGrowthFactor } from './pensionEngine.js';
 import { executeWithdrawal } from './withdrawalStrategy.js';
 import { projectYear, getIsaDrawdownAllowed, getSippDrawdownAllowed, getCashDrawdownAllowed } from './projectionUtils.js';
 import { validateYearInvariants } from './invariants.js';
@@ -60,6 +60,10 @@ export function runProjection(config, { debug = false } = {}) {
     const inflationRate   = (config.inflationRate ?? 2.5) / 100;
     const inflationFactor = Math.pow(1 + inflationRate, i);
 
+    // Pension-specific growth factor based on configured state pension model.
+    // May differ from inflationFactor when growthModel is 'tripleLock' or 'custom'.
+    const pensionGrowthFactor = computePensionGrowthFactor(config, i);
+
     // Per-account ledger tracking (used for invariant validation and debug output)
     const openingBals = { ...balances };
     const growthAmt   = { isa: 0, sipp: 0, premiumBonds: 0, cash: 0 };
@@ -92,10 +96,25 @@ export function runProjection(config, { debug = false } = {}) {
       growthAmt.sipp = balances.sipp - prev;
     }
     if (config.premiumBonds.enabled) {
-      const prev = balances.premiumBonds;
-      balances.premiumBonds = projectYear(balances.premiumBonds, (config.premiumBonds.prizeRate ?? 0) / 100);
-      growthAmt.premiumBonds = balances.premiumBonds - prev;
-      // PB cap is enforced in Step 3b (after all inflows including lump sums)
+      const prev      = balances.premiumBonds;
+      const grownBal  = projectYear(balances.premiumBonds, (config.premiumBonds.prizeRate ?? 0) / 100);
+      const prize     = grownBal - prev;
+      growthAmt.premiumBonds = prize;
+
+      if (config.premiumBonds.compoundMode) {
+        // Mode B: prize compounds inside the PB account (balance grows)
+        balances.premiumBonds = grownBal;
+        // PB cap is enforced in Step 3b (after all inflows including lump sums)
+      } else {
+        // Mode A: prize paid out — PB balance stays flat, prize transferred to cash
+        balances.premiumBonds = prev;      // balance unchanged
+        xfersOut.premiumBonds += prize;    // prize leaves PB account
+        if (config.cash.enabled) {
+          balances.cash += prize;          // prize enters cash account
+          xfersIn.cash  += prize;
+        }
+        // If cash is disabled the prize is disbursed outside the model (no-op)
+      }
     }
     if (config.cash.enabled) {
       const prev = balances.cash;
@@ -179,7 +198,7 @@ export function runProjection(config, { debug = false } = {}) {
     let spendingCovered       = 0;
     let requiredSpending      = 0;
 
-    const { total: pensionIncome, dbIncome, stateIncome } = getPensionIncome(config, age, inflationFactor);
+    const { total: pensionIncome, dbIncome, stateIncome } = getPensionIncome(config, age, inflationFactor, pensionGrowthFactor);
 
     // Per-account drawdown eligibility is computed outside the retirement gate so
     // that accounts with an explicit drawdown start age earlier than retirementAge
@@ -397,6 +416,24 @@ export function runProjection(config, { debug = false } = {}) {
       totalNetWorth:       Math.round(totalNetWorth),
       realTotalNetWorth:   Math.round(totalNetWorth / inflationFactor),
       inflationFactor:     Math.round(inflationFactor * 10000) / 10000,
+      // Pre-computed real (inflation-adjusted) values — divide nominal by inflationFactor.
+      // Used by UI when displayMode === 'real'.
+      realIsaBalance:           Math.round(balances.isa / inflationFactor),
+      realSippBalance:          Math.round(balances.sipp / inflationFactor),
+      realPremiumBondsBalance:  Math.round(balances.premiumBonds / inflationFactor),
+      realCashBalance:          Math.round(balances.cash / inflationFactor),
+      realIsaWithdrawn:         Math.round(isaWithdrawn / inflationFactor),
+      realSippWithdrawn:        Math.round(sippWithdrawn / inflationFactor),
+      realPremiumBondsWithdrawn:Math.round(premiumBondsWithdrawn / inflationFactor),
+      realCashWithdrawn:        Math.round(cashWithdrawn / inflationFactor),
+      realTotalWithdrawn:       Math.round(totalWithdrawn / inflationFactor),
+      realDbIncome:             Math.round(dbIncome / inflationFactor),
+      realStateIncome:          Math.round(stateIncome / inflationFactor),
+      realTotalPensionIncome:   Math.round(pensionIncome / inflationFactor),
+      realTotalIncome:          Math.round(totalIncome / inflationFactor),
+      realRequiredSpending:     Math.round(requiredSpending / inflationFactor),
+      realSpendingCovered:      Math.round(spendingCovered / inflationFactor),
+      realShortfall:            Math.round(shortfall / inflationFactor),
       isaContribution:     Math.round(isaContribution),
       sippContribution:    Math.round(sippContribution),
       cashContribution:    Math.round(cashContribution),
