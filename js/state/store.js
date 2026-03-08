@@ -22,6 +22,9 @@ export const DEFAULT_STATE = {
   // UK State Pension Age
   statePensionAge: 67,
 
+  // Display mode: "real" (inflation-adjusted, today's purchasing power) or "nominal" (future £s)
+  displayMode: 'real',
+
   // Investment pots
   isa: {
     enabled: true,
@@ -51,6 +54,9 @@ export const DEFAULT_STATE = {
     prizeRate: 3,
     // Age from which drawdown begins (null = same as retirement)
     drawdownStartAge: null,
+    // compoundMode: false = Mode A (prize paid out to cash, balance stays flat)
+    //               true  = Mode B (prize compounds inside account)
+    compoundMode: false,
   },
 
   cash: {
@@ -74,6 +80,12 @@ export const DEFAULT_STATE = {
     enabled: true,
     annualIncome: 11000,
     // startAge derived from statePensionAge above
+    // growthModel: how the state pension increases over time
+    //   "real"       — constant in real terms (nominal rises with inflation, default)
+    //   "tripleLock" — annual increase = max(inflation, 2.5%) [simplified triple lock]
+    //   "custom"     — annual increase = customGrowthRate %/yr
+    growthModel: 'real',
+    customGrowthRate: 2.5,
   },
 
   // Drawdown

@@ -65,6 +65,13 @@ function buildSidebarHTML(s) {
           <label>Maximum Annual Income (£, blank = no limit)</label>
           <input type="number" id="maxIncome" value="${s.maxIncome ?? ''}" min="0" step="1000" placeholder="No limit" />
         </div>
+        <div class="field">
+          <label>Display Mode</label>
+          <select id="displayMode">
+            <option value="real"    ${(s.displayMode || 'real') === 'real'    ? 'selected' : ''}>Real (today's £, inflation-adjusted)</option>
+            <option value="nominal" ${(s.displayMode || 'real') === 'nominal' ? 'selected' : ''}>Nominal (future £s)</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -175,6 +182,15 @@ function buildSidebarHTML(s) {
           <label>Drawdown Start Age (blank = retirement age)</label>
           <input type="number" id="pbDrawdownStartAge" value="${s.premiumBonds.drawdownStartAge ?? ''}" min="40" max="90" placeholder="Same as retirement age" />
         </div>
+        <div class="toggle-field">
+          <label for="pbCompoundMode">Compound prizes (Mode B)</label>
+          <label class="switch"><input type="checkbox" id="pbCompoundMode" ${s.premiumBonds.compoundMode ? 'checked' : ''} /><span class="slider"></span></label>
+        </div>
+        <div class="field" style="font-size:0.78rem;color:var(--text-muted);padding:0.25rem 0;">
+          ${s.premiumBonds.compoundMode
+            ? 'Mode B: prizes compound inside the account (balance grows up to £50k cap).'
+            : 'Mode A: prizes paid out to Cash each year (balance stays flat).'}
+        </div>
         <button class="btn btn-sm btn-secondary btn-full acct-override-btn" data-account="premiumBonds"
                 title="Edit lump sum &amp; extra drawdown overrides for Premium Bonds">
           ⚙ Premium Bonds Overrides…
@@ -261,8 +277,20 @@ function buildSidebarHTML(s) {
           <label>Annual Income (£/yr)</label>
           <input type="number" id="spAnnualIncome" value="${s.statePension.annualIncome}" min="0" step="500" />
         </div>
+        <div class="field">
+          <label>Growth Model</label>
+          <select id="spGrowthModel">
+            <option value="real"        ${(s.statePension.growthModel || 'real') === 'real'        ? 'selected' : ''}>Real (constant purchasing power)</option>
+            <option value="tripleLock"  ${(s.statePension.growthModel || 'real') === 'tripleLock'  ? 'selected' : ''}>Triple Lock (max of inflation, 2.5%)</option>
+            <option value="custom"      ${(s.statePension.growthModel || 'real') === 'custom'      ? 'selected' : ''}>Custom growth rate</option>
+          </select>
+        </div>
+        <div class="field" id="spCustomRateField" style="${(s.statePension.growthModel || 'real') === 'custom' ? '' : 'display:none'}">
+          <label>Custom Growth Rate (%/yr)</label>
+          <input type="number" id="spCustomGrowthRate" value="${s.statePension.customGrowthRate ?? 2.5}" min="0" max="15" step="0.1" />
+        </div>
         <div class="field" style="font-size:0.78rem;color:var(--text-muted);padding:0.25rem 0;">
-          Start age determined by State Pension Age (set in Profile): <strong>${s.statePensionAge}</strong>
+          Start age determined by State Pension Age (set in Profile): <strong data-sp-age-hint>${s.statePensionAge}</strong>
         </div>
       </div>
     </div>
@@ -300,6 +328,7 @@ function attachEventListeners(container) {
   bindNumber(container, 'inflationRate',     v => setState({ inflationRate: v }));
   bindNumber(container, 'drawdownRate',      v => setState({ drawdown: { rate: v } }));
   bindNullableNumber(container, 'maxIncome', v => setState({ maxIncome: v }));
+  bindSelect(container, 'displayMode',       v => setState({ displayMode: v }));
 
   // ISA
   bindCheckbox(container, 'isaEnabled',          v => setState({ isa: { enabled: v } }));
@@ -321,6 +350,7 @@ function attachEventListeners(container) {
   bindCheckbox(container, 'pbEnabled',          v => setState({ premiumBonds: { enabled: v } }));
   bindNumber(container,   'pbBalance',          v => setState({ premiumBonds: { balance: v } }));
   bindNumber(container,   'pbPrizeRate',        v => setState({ premiumBonds: { prizeRate: v } }));
+  bindCheckbox(container, 'pbCompoundMode',     v => setState({ premiumBonds: { compoundMode: v } }));
   const pbDrawdownEl = container.querySelector('#pbDrawdownStartAge');
   if (pbDrawdownEl) {
     pbDrawdownEl.addEventListener('change', () => {
@@ -343,8 +373,14 @@ function attachEventListeners(container) {
   bindNumber(container,   'dbStartAge',   v => setState({ dbPension: { startAge: v } }));
 
   // State Pension
-  bindCheckbox(container, 'spEnabled',     v => setState({ statePension: { enabled: v } }));
-  bindNumber(container,   'spAnnualIncome',v => setState({ statePension: { annualIncome: v } }));
+  bindCheckbox(container, 'spEnabled',          v => setState({ statePension: { enabled: v } }));
+  bindNumber(container,   'spAnnualIncome',     v => setState({ statePension: { annualIncome: v } }));
+  bindSelect(container,   'spGrowthModel',      v => {
+    setState({ statePension: { growthModel: v } });
+    const customField = container.querySelector('#spCustomRateField');
+    if (customField) customField.style.display = v === 'custom' ? '' : 'none';
+  });
+  bindNumber(container,   'spCustomGrowthRate', v => setState({ statePension: { customGrowthRate: v } }));
 }
 
 function bindNumber(container, id, fn) {
@@ -371,4 +407,10 @@ function bindCheckbox(container, id, fn) {
   const el = container.querySelector(`#${id}`);
   if (!el) return;
   el.addEventListener('change', () => fn(el.checked));
+}
+
+function bindSelect(container, id, fn) {
+  const el = container.querySelector(`#${id}`);
+  if (!el) return;
+  el.addEventListener('change', () => fn(el.value));
 }

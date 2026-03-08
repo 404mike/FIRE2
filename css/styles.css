@@ -954,3 +954,26 @@ header {
   align-self: center;
   flex-shrink: 0;
 }
+
+/* ── Display mode badge ───────────────────────────────────────────────────── */
+
+.mode-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mode-real {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.mode-nominal {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
