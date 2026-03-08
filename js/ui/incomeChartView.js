@@ -1,15 +1,53 @@
 /**
  * incomeChartView.js — Stacked bar chart: income sources vs required spending
  *
- * Shows per-year (retirement only) breakdown of income:
+ * Shows per-year breakdown of income from Retirement Age (including the bridge period):
  *   ISA drawdown | SIPP drawdown | PB drawdown | Cash drawdown | DB pension | State pension
  * Overlaid with a line for required spending.
+ * A vertical annotation marks the transition from bridge to guaranteed-income phase.
  * When config.displayMode === 'real', all values are in today's purchasing power.
  */
 
 import { toDisplayValue } from './helpers.js';
 
 let _incomeChart = null;
+
+// Module-level annotation state — updated before every render so the plugin
+// (registered once at chart creation) always reads current values.
+let _annotationState = { hasBridge: false, bridgeToRetireIdx: -1 };
+
+// Inline annotation plugin: draws a vertical line at the bridge→retire boundary
+const _annotationPlugin = {
+  id: 'fire2IncomeAnnotations',
+  afterDraw(chart) {
+    if (!_annotationState.hasBridge || _annotationState.bridgeToRetireIdx < 1) return;
+    const ctx   = chart.ctx;
+    const xAxis = chart.scales.x;
+    const yAxis = chart.scales.y;
+    if (!xAxis || !yAxis) return;
+
+    // Draw between the last bridge bar and the first retire bar
+    const x = (
+      xAxis.getPixelForValue(_annotationState.bridgeToRetireIdx - 1) +
+      xAxis.getPixelForValue(_annotationState.bridgeToRetireIdx)
+    ) / 2;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, yAxis.top);
+    ctx.lineTo(x, yAxis.bottom);
+    ctx.strokeStyle = '#16a34a';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#16a34a';
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Pension income starts', x, yAxis.top - 4);
+    ctx.restore();
+  },
+};
 
 // Consistent colour palette (matches chartView + summaryView)
 const COLOURS = {
@@ -25,6 +63,10 @@ const COLOURS = {
 /**
  * Render or update the income vs spending chart.
  *
+ * Shows both bridge and retire phases (from retirement age onwards) so users
+ * can see how portfolio drawdown funds the bridge period before guaranteed
+ * income begins.  A vertical annotation marks the bridge→retire boundary.
+ *
  * @param {HTMLCanvasElement} canvas
  * @param {object[]}          rows    Projection rows (all years)
  * @param {object}            config  App state
@@ -32,9 +74,16 @@ const COLOURS = {
 export function renderIncomeChart(canvas, rows, config) {
   if (typeof Chart === 'undefined' || !canvas || !rows || rows.length === 0) return;
 
-  // Only show retirement years (phase === 'retire')
-  const retRows = rows.filter(r => r.phase === 'retire');
+  // Show both bridge AND retire phases (from retirement age onwards)
+  const retRows = rows.filter(r => r.phase === 'bridge' || r.phase === 'retire');
   if (retRows.length === 0) return;
+
+  // Locate the bridge→retire transition index within retRows
+  const bridgeToRetireIdx = retRows.findIndex(r => r.phase === 'retire');
+  const hasBridge = bridgeToRetireIdx > 0;
+
+  // Update module-level annotation state so the registered plugin sees it
+  _annotationState = { hasBridge, bridgeToRetireIdx };
 
   const displayMode = config.displayMode || 'real';
   const isReal = displayMode === 'real';
@@ -113,9 +162,11 @@ export function renderIncomeChart(canvas, rows, config) {
         tooltip: {
           callbacks: {
             title(items) {
-              const year = labels[items[0].dataIndex];
-              const age  = ageMap[year];
-              return age !== undefined ? `${year} (age ${age})` : `${year}`;
+              const year  = labels[items[0].dataIndex];
+              const age   = ageMap[year];
+              const row   = retRows[items[0].dataIndex];
+              const phase = row?.phase === 'bridge' ? ' · Bridge' : '';
+              return age !== undefined ? `${year} (age ${age})${phase}` : `${year}`;
             },
             label(ctx) {
               const val = ctx.parsed.y;
@@ -163,6 +214,7 @@ export function renderIncomeChart(canvas, rows, config) {
         },
       },
     },
+    plugins: [_annotationPlugin],
   };
 
   if (_incomeChart) {
