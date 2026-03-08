@@ -72,9 +72,8 @@ export function runProjection(config, { debug = false } = {}) {
     const xfersIn     = { isa: 0, sipp: 0, premiumBonds: 0, cash: 0 };
     const xfersOut    = { isa: 0, sipp: 0, premiumBonds: 0, cash: 0 };
 
-    // ── Step 1: Apply growth to each pot ──────────────────────────────────
-    // Capture the pre-growth portfolio total first so that rate-based drawdown
-    // is calculated from the opening balance (not the post-growth balance).
+    // Capture the pre-contribution portfolio total so that rate-based drawdown
+    // is calculated from the true opening balance (not post-contribution/growth).
     // This enforces the invariant:
     //   net change = openingBalance × (growthRate − drawdownRate)
     const preGrowthPortfolio =
@@ -83,49 +82,13 @@ export function runProjection(config, { debug = false } = {}) {
       (config.premiumBonds.enabled ? balances.premiumBonds : 0) +
       (config.cash.enabled         ? balances.cash         : 0);
 
-    // Growth is applied unconditionally (independent of contribution status),
-    // so balances continue to compound even after contributions have stopped.
-    if (config.isa.enabled) {
-      const prev = balances.isa;
-      balances.isa = projectYear(balances.isa, (config.isa.growthRate ?? 0) / 100);
-      growthAmt.isa = balances.isa - prev;
-    }
-    if (config.sipp.enabled) {
-      const prev = balances.sipp;
-      balances.sipp = projectYear(balances.sipp, (config.sipp.growthRate ?? 0) / 100);
-      growthAmt.sipp = balances.sipp - prev;
-    }
-    if (config.premiumBonds.enabled) {
-      const prev      = balances.premiumBonds;
-      const grownBal  = projectYear(balances.premiumBonds, (config.premiumBonds.prizeRate ?? 0) / 100);
-      const prize     = grownBal - prev;
-      growthAmt.premiumBonds = prize;
-
-      if (config.premiumBonds.compoundMode) {
-        // Mode B: prize compounds inside the PB account (balance grows)
-        balances.premiumBonds = grownBal;
-        // PB cap is enforced in Step 3b (after all inflows including lump sums)
-      } else {
-        // Mode A: prize paid out — PB balance stays flat, prize transferred to cash
-        balances.premiumBonds = prev;      // balance unchanged
-        xfersOut.premiumBonds += prize;    // prize leaves PB account
-        if (config.cash.enabled) {
-          balances.cash += prize;          // prize enters cash account
-          xfersIn.cash  += prize;
-        }
-        // If cash is disabled the prize is disbursed outside the model (no-op)
-      }
-    }
-    if (config.cash.enabled) {
-      const prev = balances.cash;
-      balances.cash = projectYear(balances.cash, (config.cash.growthRate ?? 0) / 100);
-      growthAmt.cash = balances.cash - prev;
-    }
-
-    // ── Step 2: Apply regular contributions (pre-retirement only) ─────────
-    let isaContribution  = 0;
-    let sippContribution = 0;
-    let cashContribution = 0;
+    // ── Step 1: Apply regular contributions (pre-retirement only) ─────────
+    // Contributions are applied before growth so that money invested this year
+    // earns a full year of returns (opening → contributions → growth).
+    let isaContribution          = 0;
+    let sippContribution         = 0;
+    let premiumBondsContribution = 0;
+    let cashContribution         = 0;
 
     // Resolve year overrides early so they can be used in contribution logic
     const override = config.overrides[year] || {};
@@ -169,10 +132,51 @@ export function runProjection(config, { debug = false } = {}) {
       }
     }
 
+    // ── Step 2: Apply growth to each pot (post-contribution balance) ──────
+    // Growth is applied after contributions so that money invested this year
+    // earns returns immediately (contributions → growth ordering).
+    // Growth continues unconditionally in retirement (compounding on the balance).
+    if (config.isa.enabled) {
+      const prev = balances.isa;
+      balances.isa = projectYear(balances.isa, (config.isa.growthRate ?? 0) / 100);
+      growthAmt.isa = balances.isa - prev;
+    }
+    if (config.sipp.enabled) {
+      const prev = balances.sipp;
+      balances.sipp = projectYear(balances.sipp, (config.sipp.growthRate ?? 0) / 100);
+      growthAmt.sipp = balances.sipp - prev;
+    }
+    if (config.premiumBonds.enabled) {
+      const prev      = balances.premiumBonds;
+      const grownBal  = projectYear(balances.premiumBonds, (config.premiumBonds.prizeRate ?? 0) / 100);
+      const prize     = grownBal - prev;
+      growthAmt.premiumBonds = prize;
+
+      if (config.premiumBonds.compoundMode) {
+        // Mode B: prize compounds inside the PB account (balance grows)
+        balances.premiumBonds = grownBal;
+        // PB cap is enforced in Step 3b (after all inflows including lump sums)
+      } else {
+        // Mode A: prize paid out — PB balance stays flat, prize transferred to cash
+        balances.premiumBonds = prev;      // balance unchanged
+        xfersOut.premiumBonds += prize;    // prize leaves PB account
+        if (config.cash.enabled) {
+          balances.cash += prize;          // prize enters cash account
+          xfersIn.cash  += prize;
+        }
+        // If cash is disabled the prize is disbursed outside the model (no-op)
+      }
+    }
+    if (config.cash.enabled) {
+      const prev = balances.cash;
+      balances.cash = projectYear(balances.cash, (config.cash.growthRate ?? 0) / 100);
+      growthAmt.cash = balances.cash - prev;
+    }
+
     // ── Step 3: Apply year overrides / lump sums ──────────────────────────
     if (override.isaLumpSum)          { balances.isa          += override.isaLumpSum;          isaContribution  += override.isaLumpSum;  inflowsLed.isa          += override.isaLumpSum; }
     if (override.sippLumpSum)         { balances.sipp         += override.sippLumpSum;         sippContribution += override.sippLumpSum; inflowsLed.sipp         += override.sippLumpSum; }
-    if (override.premiumBondLumpSum)  { balances.premiumBonds += override.premiumBondLumpSum;                                            inflowsLed.premiumBonds += override.premiumBondLumpSum; }
+    if (override.premiumBondLumpSum)  { balances.premiumBonds += override.premiumBondLumpSum;  premiumBondsContribution += override.premiumBondLumpSum; inflowsLed.premiumBonds += override.premiumBondLumpSum; }
     if (override.cashLumpSum)         { balances.cash         += override.cashLumpSum;          cashContribution += override.cashLumpSum; inflowsLed.cash         += override.cashLumpSum; }
 
     // ── Step 3b: Premium Bonds cap enforcement (after all inflows) ─────────
@@ -405,6 +409,10 @@ export function runProjection(config, { debug = false } = {}) {
       age,
     });
 
+    const surplus = Math.max(0, totalIncome - requiredSpending);
+    const totalContributions =
+      isaContribution + sippContribution + premiumBondsContribution + cashContribution;
+
     const row = {
       year,
       age,
@@ -434,9 +442,13 @@ export function runProjection(config, { debug = false } = {}) {
       realRequiredSpending:     Math.round(requiredSpending / inflationFactor),
       realSpendingCovered:      Math.round(spendingCovered / inflationFactor),
       realShortfall:            Math.round(shortfall / inflationFactor),
+      realSurplus:              Math.round(surplus / inflationFactor),
+      realTotalContributions:   Math.round(totalContributions / inflationFactor),
       isaContribution:     Math.round(isaContribution),
       sippContribution:    Math.round(sippContribution),
+      premiumBondsContribution: Math.round(premiumBondsContribution),
       cashContribution:    Math.round(cashContribution),
+      totalContributions:  Math.round(totalContributions),
       isaWithdrawn:        Math.round(isaWithdrawn),
       sippWithdrawn:       Math.round(sippWithdrawn),
       premiumBondsWithdrawn: Math.round(premiumBondsWithdrawn),
@@ -449,6 +461,7 @@ export function runProjection(config, { debug = false } = {}) {
       requiredSpending:    Math.round(requiredSpending),
       spendingCovered:     Math.round(spendingCovered),
       shortfall:           Math.round(shortfall),
+      surplus:             Math.round(surplus),
       excessIncome,
       note:                override.note || '',
     };

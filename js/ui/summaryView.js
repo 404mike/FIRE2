@@ -25,20 +25,46 @@ export function renderSummaryView(container, rows, config) {
   // Final row
   const finalRow = rows[rows.length - 1];
 
-  // Sustainability: does portfolio survive to end age?
-  const exhausted = rows.find(r => r.totalNetWorth <= 0 && r.age > config.retirementAge);
-  const isSustainable = !exhausted;
-
-  // Years of shortfall
-  const shortfallYears = rows.filter(r => r.shortfall > 0).length;
-
-  // FI Age: first retirement year where no spending shortfall exists
+  // Retirement rows only (for retirement-phase metrics)
   const retirementRows = rows.filter(r => r.phase === 'retire');
+  const totalRetirementYears = retirementRows.length;
+
+  // ── Metric 1: Probability of success ──────────────────────────────────
+  // % of retirement years where spending is fully covered (no shortfall)
+  const fullyFundedYears = retirementRows.filter(r => r.shortfall === 0).length;
+  const probabilityOfSuccess = totalRetirementYears > 0
+    ? Math.round((fullyFundedYears / totalRetirementYears) * 100)
+    : 100;
+
+  // ── Metric 2: Worst-year balance ──────────────────────────────────────
+  // Minimum net worth (display-mode aware) across all retirement years
+  const worstYearBalance = retirementRows.length > 0
+    ? Math.min(...retirementRows.map(r => toDisplayValue(r, 'totalNetWorth', displayMode)))
+    : toDisplayValue(retirementRow, 'totalNetWorth', displayMode);
+
+  // ── Metric 3: First shortfall year ────────────────────────────────────
+  const firstShortfallRow = retirementRows.find(r => r.shortfall > 0);
+  const firstShortfallAge  = firstShortfallRow ? firstShortfallRow.age : null;
+
+  // ── FI Age: first retirement year where no spending shortfall exists ──
   const fiRow = retirementRows.find(r => r.shortfall === 0);
   const fiAge = fiRow ? fiRow.age : null;
 
-  // Monthly retirement income estimate (always in today's £ regardless of displayMode)
-  const monthlyIncome = config.retirementSpending / 12;
+  // ── Monthly target spend (always in today's £ regardless of displayMode) ──
+  const monthlyTargetSpend = config.retirementSpending / 12;
+
+  // ── Guaranteed income summary ─────────────────────────────────────────
+  const hasDb = config.dbPension.enabled;
+  const hasSp = config.statePension.enabled;
+  const dbAnnual = hasDb ? config.dbPension.annualIncome : 0;
+  const spAnnual = hasSp ? config.statePension.annualIncome : 0;
+  const totalGuaranteed = dbAnnual + spAnnual;
+  // Earliest age at which ANY guaranteed income begins
+  const guaranteedStartAge = hasDb && hasSp
+    ? Math.min(config.dbPension.startAge, config.statePensionAge)
+    : hasDb ? config.dbPension.startAge
+    : hasSp ? config.statePensionAge
+    : null;
 
   // Asset allocation at retirement (or current age if already retired) — display-mode aware
   const allocRow = retirementRow;
@@ -52,14 +78,14 @@ export function renderSummaryView(container, rows, config) {
   const retirementNetWorth = toDisplayValue(retirementRow, 'totalNetWorth', displayMode);
   const finalNetWorth      = toDisplayValue(finalRow, 'totalNetWorth', displayMode);
 
-  // Portfolio Health indicator
-  let healthEmoji, healthLabel, healthClass;
-  if (isSustainable && shortfallYears === 0) {
-    healthEmoji = '🟢'; healthLabel = 'Healthy'; healthClass = 'tile-positive';
-  } else if (isSustainable && shortfallYears <= 3) {
-    healthEmoji = '🟡'; healthLabel = 'Marginal'; healthClass = 'tile-warning';
+  // Health class driven by probability of success
+  let healthClass;
+  if (probabilityOfSuccess === 100) {
+    healthClass = 'tile-positive';
+  } else if (probabilityOfSuccess >= 80) {
+    healthClass = 'tile-warning';
   } else {
-    healthEmoji = '🔴'; healthLabel = 'At Risk'; healthClass = 'tile-negative';
+    healthClass = 'tile-negative';
   }
 
   // Safe spending estimate from 4% rule at retirement (display-mode aware)
@@ -92,6 +118,15 @@ export function renderSummaryView(container, rows, config) {
 
   const modeTag = displayMode === 'real' ? "<span class=\"mode-badge mode-real\">Real</span>" : "<span class=\"mode-badge mode-nominal\">Nominal</span>";
 
+  // Guaranteed income description with start ages
+  let guaranteedIncomeDetail = '';
+  if (hasDb || hasSp) {
+    const parts = [];
+    if (hasDb) parts.push(`DB ${formatCurrency(dbAnnual)}/yr from age ${config.dbPension.startAge}`);
+    if (hasSp) parts.push(`State Pension ${formatCurrency(spAnnual)}/yr from age ${config.statePensionAge}`);
+    guaranteedIncomeDetail = parts.join(' + ');
+  }
+
   container.innerHTML = `
     <div class="snapshot-grid">
       <div class="snapshot-tile snapshot-primary">
@@ -105,19 +140,36 @@ export function renderSummaryView(container, rows, config) {
         <div class="tile-sub">${fiAge !== null ? `Financially independent at ${fiAge}` : 'Spending exceeds income'}</div>
       </div>
       <div class="snapshot-tile">
-        <div class="tile-label">Monthly Income (today's £)</div>
-        <div class="tile-value">${formatCurrency(monthlyIncome)}</div>
-        <div class="tile-sub">Target retirement spend</div>
+        <div class="tile-label">Target Monthly Spend (today's £)</div>
+        <div class="tile-value">${formatCurrency(monthlyTargetSpend)}</div>
+        <div class="tile-sub">Retirement spending target</div>
       </div>
       <div class="snapshot-tile">
         <div class="tile-label">4% Safe Spending ${modeTag}</div>
         <div class="tile-value">${formatCurrency(safeSpending4pct)}</div>
         <div class="tile-sub">Sustainable annual draw</div>
       </div>
+      ${(hasDb || hasSp) ? `
+      <div class="snapshot-tile tile-positive">
+        <div class="tile-label">Guaranteed Income${guaranteedStartAge !== null ? ` (from age ${guaranteedStartAge})` : ''}</div>
+        <div class="tile-value">${formatCurrency(totalGuaranteed)}/yr</div>
+        <div class="tile-sub" title="${guaranteedIncomeDetail}">${guaranteedIncomeDetail}</div>
+      </div>
+      ` : ''}
       <div class="snapshot-tile ${healthClass}">
-        <div class="tile-label">Portfolio Health</div>
-        <div class="tile-value">${healthEmoji} ${healthLabel}</div>
-        <div class="tile-sub">${isSustainable ? `Lasts to age ${config.endAge}` : `Exhausted at age ${exhausted.age}`}${shortfallYears > 0 ? ` · ${shortfallYears} yr${shortfallYears > 1 ? 's' : ''} short` : ''}</div>
+        <div class="tile-label">Probability of Success</div>
+        <div class="tile-value">${probabilityOfSuccess}%</div>
+        <div class="tile-sub">${probabilityOfSuccess === 100 ? `Fully funded to age ${config.endAge}` : firstShortfallAge !== null ? `First shortfall at age ${firstShortfallAge}` : 'Spending exceeds income'}</div>
+      </div>
+      <div class="snapshot-tile ${worstYearBalance <= 0 ? 'tile-negative' : ''}">
+        <div class="tile-label">Worst-Year Balance ${modeTag}</div>
+        <div class="tile-value ${worstYearBalance <= 0 ? 'tile-negative' : ''}">${formatCurrency(worstYearBalance)}</div>
+        <div class="tile-sub">Lowest net worth in retirement</div>
+      </div>
+      <div class="snapshot-tile ${firstShortfallAge !== null ? 'tile-negative' : ''}">
+        <div class="tile-label">First Shortfall</div>
+        <div class="tile-value">${firstShortfallAge !== null ? `Age ${firstShortfallAge}` : '—'}</div>
+        <div class="tile-sub">${firstShortfallAge !== null ? `Spending gap first appears at age ${firstShortfallAge}` : 'No shortfall projected'}</div>
       </div>
       <div class="snapshot-tile">
         <div class="tile-label">Final Net Worth (Age ${config.endAge}) ${modeTag}</div>
@@ -128,3 +180,4 @@ export function renderSummaryView(container, rows, config) {
     ${allocBars ? `<div class="alloc-section">${allocBars}</div>` : ''}
   `;
 }
+

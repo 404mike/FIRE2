@@ -78,7 +78,7 @@ export const DEFAULT_STATE = {
 
   statePension: {
     enabled: true,
-    annualIncome: 11000,
+    annualIncome: 11502,   // Full new State Pension 2024/25 (£221.20/week × 52)
     // startAge derived from statePensionAge above
     // growthModel: how the state pension increases over time
     //   "real"       — constant in real terms (nominal rises with inflation, default)
@@ -90,8 +90,9 @@ export const DEFAULT_STATE = {
 
   // Drawdown
   drawdown: {
-    // Default drawdown rate applied to all retirement years
-    rate: 4,
+    // Default drawdown rate (0 = spending-driven mode: portfolio draws only the gap
+    // between required spending and guaranteed pension income).
+    rate: 0,
   },
 
   // Withdrawal order (array of pot keys in priority order)
