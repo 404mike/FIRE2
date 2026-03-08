@@ -201,6 +201,7 @@ export function renderTableView(container, rows, config) {
       setOverride(year, {
         isaCustomDrawdown:  isaExtraDraw  > 0 ? isaExtraDraw  : null,
         sippCustomDrawdown: sippExtraDraw > 0 ? sippExtraDraw : null,
+        // Preserve any user-written note; only supply a default when none exists.
         note: config.overrides?.[year]?.note || 'Auto-fill drawdown',
       });
       _showToast('Drawdown auto-filled for this year');
@@ -304,7 +305,8 @@ function exportToCsv(rows, config, displayMode) {
 
 /**
  * Show a brief toast notification at the bottom of the viewport.
- * Falls back silently if #toastContainer is not present in the DOM.
+ * Requires a `#toastContainer` element to be present in the HTML.
+ * Falls back silently if the element is not found in the DOM.
  * @param {string} message
  * @param {number} [duration=3000]
  */
