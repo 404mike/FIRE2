@@ -43,7 +43,7 @@ export function getPensionIncome(config, age, inflationFactor = 1, pensionGrowth
   // When pensionGrowthFactor is not provided the legacy behaviour is preserved
   // (inflate by CPI, i.e. constant real purchasing power).
   if (config.statePension.enabled && age >= config.statePensionAge) {
-    const factor = pensionGrowthFactor !== null ? pensionGrowthFactor : inflationFactor;
+    const factor = pensionGrowthFactor ?? inflationFactor;
     stateIncome = config.statePension.annualIncome * factor;
   }
 
