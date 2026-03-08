@@ -105,10 +105,10 @@ test('state pension inflation does not apply before state pension age', () => {
   assert.strictEqual(stateIncome, 0);
 });
 
-test('DB pension is not inflation-adjusted (fixed nominal)', () => {
-  // DB income stays at its configured value regardless of inflationFactor
+test('DB pension is inflation-adjusted (consistent real value)', () => {
+  // DB income grows with inflation so its real purchasing power stays constant
   const { dbIncome } = getPensionIncome(makeConfig(), 65, 1.2);
-  assert.strictEqual(dbIncome, 12000);
+  assert.strictEqual(dbIncome, 12000 * 1.2);
 });
 
 test('inflationFactor defaults to 1 (no inflation) when omitted', () => {
@@ -117,12 +117,12 @@ test('inflationFactor defaults to 1 (no inflation) when omitted', () => {
   assert.strictEqual(stateIncome, 11000);
 });
 
-test('total reflects inflated state pension plus fixed DB pension', () => {
+test('total reflects inflated state pension and inflated DB pension', () => {
   const factor = 1.25;
   const { total, dbIncome, stateIncome } = getPensionIncome(makeConfig(), 67, factor);
-  assert.strictEqual(dbIncome, 12000);
+  assert.strictEqual(dbIncome, 12000 * factor);
   assert.strictEqual(stateIncome, 11000 * factor);
-  assert.strictEqual(total, 12000 + 11000 * factor);
+  assert.strictEqual(total, 12000 * factor + 11000 * factor);
 });
 
 // ── pensionGrowthFactor (4th parameter) ──────────────────────────────────────
@@ -138,9 +138,10 @@ test('pensionGrowthFactor null falls back to inflationFactor', () => {
   assert.strictEqual(stateIncome, 11000 * 1.1);
 });
 
-test('DB pension is not affected by pensionGrowthFactor', () => {
+test('DB pension is not affected by pensionGrowthFactor (uses inflationFactor only)', () => {
+  // DB pension uses inflationFactor (1.1), not pensionGrowthFactor (1.5)
   const { dbIncome } = getPensionIncome(makeConfig(), 65, 1.1, 1.5);
-  assert.strictEqual(dbIncome, 12000);
+  assert.strictEqual(dbIncome, 12000 * 1.1);
 });
 
 // ── computePensionGrowthFactor ────────────────────────────────────────────────

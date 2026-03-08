@@ -34,9 +34,9 @@ export function getPensionIncome(config, age, inflationFactor = 1, pensionGrowth
   let dbIncome = 0;
   let stateIncome = 0;
 
-  // Defined Benefit pension — fixed nominal amount, not inflation-adjusted.
+  // Defined Benefit pension — inflation-adjusted to maintain consistent real value.
   if (config.dbPension.enabled && age >= config.dbPension.startAge) {
-    dbIncome = config.dbPension.annualIncome;
+    dbIncome = config.dbPension.annualIncome * inflationFactor;
   }
 
   // State pension — scaled to nominal using the configured growth model.
