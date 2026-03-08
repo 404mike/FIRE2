@@ -1050,12 +1050,14 @@ test('totalGrowth is the sum of per-account growth in a row', () => {
 });
 
 test('realTotalGrowth is inflation-adjusted version of totalGrowth', () => {
-  const config = makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 0 });
+  // Use endAge=62 so we have a year 1 where inflationFactor = 1.025 > 1
+  const config = makeConfig({ balance: 100000, growthRate: 5, drawdownRate: 0, endAge: 62 });
   config.inflationRate = 2.5;
   const rows = runProjection(config);
-  // nominal growth = 5000; inflationFactor ≈ 1.025; real ≈ 4878
-  const expected = Math.round(5000 / Math.pow(1.025, 0)); // year 0: inflationFactor = 1.0
-  assert.strictEqual(rows[0].realTotalGrowth, expected, 'realTotalGrowth should be inflation-adjusted');
+  // Year 1: ISA grew from 105000 to 110250 → growth = 5250; inflationFactor = 1.025
+  // realTotalGrowth = round(5250 / 1.025) = 5122
+  assert.strictEqual(rows[1].totalGrowth,     5250, 'nominal growth at year 1');
+  assert.strictEqual(rows[1].realTotalGrowth, Math.round(5250 / 1.025), 'realTotalGrowth is inflation-adjusted');
 });
 
 // ── Ceiling: spending below rate ceiling → spending drives, no overshoot ─────
