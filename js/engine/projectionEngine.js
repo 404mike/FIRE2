@@ -7,7 +7,7 @@
  * Each row:
  * {
  *   year, age,
- *   phase,               // 'accumulate' | 'retire'
+ *   phase,               // 'accumulate' | 'bridge' | 'retire'
  *   isaBalance, sippBalance, premiumBondsBalance, cashBalance,
  *   totalNetWorth,
  *   isaContribution, sippContribution,
@@ -50,11 +50,25 @@ export function runProjection(config, { debug = false } = {}) {
 
   const numYears = config.endAge - config.currentAge;
 
+  // Bridge phase: the period after retirement but before any guaranteed income
+  // starts.  Bridge ends at the minimum enabled pension start age that is
+  // strictly after retirementAge.  When no such pension exists, bridge length
+  // is zero (bridgeEndAge === retirementAge) and the phase jumps straight to
+  // 'retire'.
+  const enabledPensionStartAges = [
+    ...(config.dbPension.enabled ? [config.dbPension.startAge] : []),
+    ...(config.statePension.enabled ? [config.statePensionAge] : []),
+  ].filter(a => a > config.retirementAge);
+  const bridgeEndAge = enabledPensionStartAges.length > 0
+    ? Math.min(...enabledPensionStartAges)
+    : config.retirementAge;
+
   for (let i = 0; i <= numYears; i++) {
     const age  = config.currentAge + i;
     const year = currentYear + i;
     const isRetired = age >= config.retirementAge;
-    const phase = isRetired ? 'retire' : 'accumulate';
+    const inBridgePhase = isRetired && age < bridgeEndAge;
+    const phase = !isRetired ? 'accumulate' : inBridgePhase ? 'bridge' : 'retire';
 
     // Cumulative inflation factor from the base year
     const inflationRate   = (config.inflationRate ?? 2.5) / 100;
@@ -414,6 +428,8 @@ export function runProjection(config, { debug = false } = {}) {
     });
 
     const surplus = Math.max(0, totalIncome - requiredSpending);
+    // surplusDeficit: positive means surplus, negative means deficit (spending not fully met)
+    const surplusDeficit = totalIncome - requiredSpending;
     const totalContributions =
       isaContribution + sippContribution + premiumBondsContribution + cashContribution;
     const totalGrowth =
@@ -470,6 +486,8 @@ export function runProjection(config, { debug = false } = {}) {
       spendingCovered:     Math.round(spendingCovered),
       shortfall:           Math.round(shortfall),
       surplus:             Math.round(surplus),
+      surplusDeficit:      Math.round(surplusDeficit),
+      realSurplusDeficit:  Math.round(surplusDeficit / inflationFactor),
       excessIncome,
       note:                override.note || '',
     };

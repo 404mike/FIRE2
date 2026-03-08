@@ -1,5 +1,11 @@
 /**
  * tableView.js — Renders the yearly projection table with editable overrides
+ *
+ * Left columns (Year/Age, Phase) are pinned (CSS sticky) so they remain
+ * visible during horizontal scroll.  A single "Surplus / Deficit" column
+ * replaces the previous separate Surplus and Shortfall columns:
+ *   positive = surplus (income > spending)
+ *   negative = deficit (spending > income)
  */
 
 import { formatCurrency, toDisplayValue } from './helpers.js';
@@ -39,19 +45,18 @@ export function renderTableView(container, rows, config) {
   const thead = `
     <thead>
       <tr class="thead-group">
-        <th colspan="2"></th>
+        <th colspan="2" class="col-pin"></th>
         <th colspan="5" class="group-header">Balances (${unitLabel})</th>
         <th colspan="2" class="group-header">Contributions / Growth</th>
-        <th colspan="2" class="group-header">Guaranteed Income</th>
+        <th colspan="3" class="group-header">Guaranteed Income</th>
         <th colspan="4" class="group-header">Portfolio Withdrawals</th>
-        <th colspan="2" class="group-header">Totals</th>
-        <th class="group-header">Excess</th>
-        <th colspan="2" class="group-header">Surplus / Shortfall</th>
+        <th colspan="3" class="group-header">Totals</th>
+        <th class="group-header">Surplus / Deficit</th>
         <th class="group-header group-override">Note</th>
       </tr>
       <tr>
-        <th>Year / Age</th>
-        <th>Phase</th>
+        <th class="col-pin">Year / Age</th>
+        <th class="col-pin">Phase</th>
         <th>ISA</th>
         <th>SIPP</th>
         <th>Bonds</th>
@@ -61,6 +66,7 @@ export function renderTableView(container, rows, config) {
         <th>Growth</th>
         <th>DB Income</th>
         <th>SP Income</th>
+        <th>Total Guaranteed</th>
         <th>ISA Drawn</th>
         <th>SIPP Drawn</th>
         <th>Bonds Drawn</th>
@@ -68,8 +74,7 @@ export function renderTableView(container, rows, config) {
         <th>Portfolio Drawn</th>
         <th>Total Income</th>
         <th>Excess Income</th>
-        <th>Surplus</th>
-        <th>Shortfall</th>
+        <th>Surplus / Deficit</th>
         <th>Note</th>
       </tr>
     </thead>
@@ -81,11 +86,14 @@ export function renderTableView(container, rows, config) {
     const isSpStart     = row.year === spStartYear;
     let rowClass = '';
     if (isRetireStart) rowClass = 'retirement-start';
+    else if (row.phase === 'bridge') rowClass = 'bridge-phase';
     else if (isDbStart || isSpStart) rowClass = 'pension-start';
 
-    const phase = row.phase === 'retire'
-      ? '<span class="badge badge-retire">Retire</span>'
-      : '<span class="badge badge-accumulate">Accum.</span>';
+    const phaseLabel = {
+      accumulate: '<span class="badge badge-accumulate">Accum.</span>',
+      bridge:     '<span class="badge badge-bridge">Bridge</span>',
+      retire:     '<span class="badge badge-retire">Retire</span>',
+    }[row.phase] ?? row.phase;
 
     const override = ov[row.year] || {};
 
@@ -100,49 +108,56 @@ export function renderTableView(container, rows, config) {
       ? '<span class="row-override-dot" title="Has account overrides this year">●</span>'
       : '';
 
-    const dbIncome    = d(row, 'dbIncome');
-    const stateIncome = d(row, 'stateIncome');
-    const contribs    = d(row, 'totalContributions');
-    const growth      = d(row, 'totalGrowth');
-    const isaW        = d(row, 'isaWithdrawn');
-    const sippW       = d(row, 'sippWithdrawn');
-    const pbW         = d(row, 'premiumBondsWithdrawn');
-    const cashW       = d(row, 'cashWithdrawn');
-    const totalW      = d(row, 'totalWithdrawn');
-    const totalInc    = d(row, 'totalIncome');
-    const surplus     = d(row, 'surplus');
-    const shortfall   = d(row, 'shortfall');
+    const dbIncome        = d(row, 'dbIncome');
+    const stateIncome     = d(row, 'stateIncome');
+    const totalGuaranteed = d(row, 'totalPensionIncome');
+    const contribs        = d(row, 'totalContributions');
+    const growth          = d(row, 'totalGrowth');
+    const isaW            = d(row, 'isaWithdrawn');
+    const sippW           = d(row, 'sippWithdrawn');
+    const pbW             = d(row, 'premiumBondsWithdrawn');
+    const cashW           = d(row, 'cashWithdrawn');
+    const totalW          = d(row, 'totalWithdrawn');
+    const totalInc        = d(row, 'totalIncome');
+    const surplusDeficit  = d(row, 'surplusDeficit');
     // excessIncome is not inflation-sensitive (it's the nominal excess flag)
-    const excess      = row.excessIncome;
+    const excess          = row.excessIncome;
+
+    // Surplus/deficit: positive = surplus (green), negative = deficit (red), 0 = muted
+    const sdClass = surplusDeficit > 0 ? 'num-positive' : surplusDeficit < 0 ? 'num-negative' : 'num-zero';
+    const sdDisplay = surplusDeficit !== 0 ? formatCurrency(surplusDeficit) : '—';
 
     return `
       <tr class="${rowClass}" data-year="${row.year}">
-        <td>${row.year} / ${row.age} ${overrideIndicator}</td>
-        <td>${phase}</td>
+        <td class="col-pin">${row.year} / ${row.age} ${overrideIndicator}</td>
+        <td class="col-pin">${phaseLabel}</td>
         <td>${formatCurrency(d(row, 'isaBalance'))}</td>
         <td>${formatCurrency(d(row, 'sippBalance'))}</td>
         <td>${formatCurrency(d(row, 'premiumBondsBalance'))}</td>
         <td>${formatCurrency(d(row, 'cashBalance'))}</td>
         <td><strong>${formatCurrency(d(row, 'totalNetWorth'))}</strong></td>
-        <td class="${contribs > 0 ? 'num-positive' : 'num-zero'}">${contribs > 0 ? formatCurrency(contribs) : '—'}</td>
-        <td class="${growth > 0 ? 'num-positive' : 'num-zero'}">${growth > 0 ? formatCurrency(growth) : '—'}</td>
-        <td class="${dbIncome > 0 ? 'num-positive' : 'num-zero'}">${dbIncome > 0 ? formatCurrency(dbIncome) : '—'}</td>
-        <td class="${stateIncome > 0 ? 'num-positive' : 'num-zero'}">${stateIncome > 0 ? formatCurrency(stateIncome) : '—'}</td>
-        <td class="${isaW > 0 ? 'num-negative' : 'num-zero'}">${isaW > 0 ? formatCurrency(isaW) : '—'}</td>
-        <td class="${sippW > 0 ? 'num-negative' : 'num-zero'}">${sippW > 0 ? formatCurrency(sippW) : '—'}</td>
-        <td class="${pbW > 0 ? 'num-negative' : 'num-zero'}">${pbW > 0 ? formatCurrency(pbW) : '—'}</td>
-        <td class="${cashW > 0 ? 'num-negative' : 'num-zero'}">${cashW > 0 ? formatCurrency(cashW) : '—'}</td>
-        <td class="${totalW > 0 ? 'num-negative' : 'num-zero'}">${totalW > 0 ? formatCurrency(totalW) : '—'}</td>
+        <td class="col-contributions ${contribs > 0 ? '' : 'num-zero'}">${contribs > 0 ? formatCurrency(contribs) : '—'}</td>
+        <td class="col-growth ${growth > 0 ? '' : 'num-zero'}">${growth > 0 ? formatCurrency(growth) : '—'}</td>
+        <td class="col-guaranteed ${dbIncome > 0 ? '' : 'num-zero'}">${dbIncome > 0 ? formatCurrency(dbIncome) : '—'}</td>
+        <td class="col-guaranteed ${stateIncome > 0 ? '' : 'num-zero'}">${stateIncome > 0 ? formatCurrency(stateIncome) : '—'}</td>
+        <td class="col-guaranteed ${totalGuaranteed > 0 ? '' : 'num-zero'}">${totalGuaranteed > 0 ? formatCurrency(totalGuaranteed) : '—'}</td>
+        <td class="col-withdrawal ${isaW > 0 ? '' : 'num-zero'}">${isaW > 0 ? formatCurrency(isaW) : '—'}</td>
+        <td class="col-withdrawal ${sippW > 0 ? '' : 'num-zero'}">${sippW > 0 ? formatCurrency(sippW) : '—'}</td>
+        <td class="col-withdrawal ${pbW > 0 ? '' : 'num-zero'}">${pbW > 0 ? formatCurrency(pbW) : '—'}</td>
+        <td class="col-withdrawal ${cashW > 0 ? '' : 'num-zero'}">${cashW > 0 ? formatCurrency(cashW) : '—'}</td>
+        <td class="col-withdrawal ${totalW > 0 ? '' : 'num-zero'}">${totalW > 0 ? formatCurrency(totalW) : '—'}</td>
         <td class="${totalInc > 0 ? 'num-positive' : 'num-zero'}">${totalInc > 0 ? formatCurrency(totalInc) : '—'}</td>
         <td class="${excess > 0 ? 'num-warning' : 'num-zero'}">${excess > 0 ? formatCurrency(excess) : '—'}</td>
-        <td class="${surplus > 0 ? 'num-positive' : 'num-zero'}">${surplus > 0 ? formatCurrency(surplus) : '—'}</td>
-        <td class="${shortfall > 0 ? 'num-negative' : 'num-zero'}">${shortfall > 0 ? formatCurrency(shortfall) : '—'}</td>
+        <td class="${sdClass}">${sdDisplay}</td>
         <td><input class="note-input" type="text" data-year="${row.year}" data-field="note" value="${override.note || ''}" placeholder="Note…" /></td>
       </tr>
     `;
   }).join('');
 
   container.innerHTML = `
+    <div class="table-toolbar">
+      <button class="btn btn-secondary btn-sm" id="exportCsvBtn">⬇ Export CSV</button>
+    </div>
     <div class="table-scroll">
       <table class="year-table">
         ${thead}
@@ -159,4 +174,80 @@ export function renderTableView(container, rows, config) {
       setOverride(year, { [field]: input.value });
     });
   });
+
+  // CSV export
+  const exportBtn = container.querySelector('#exportCsvBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => exportToCsv(rows, config, displayMode));
+  }
+}
+
+/**
+ * Export projection rows to a CSV file and trigger browser download.
+ *
+ * The CSV includes:
+ *  - An assumptions header block (inflation, display mode, drawdown settings)
+ *  - All year-table columns
+ *
+ * @param {object[]} rows
+ * @param {object}   config
+ * @param {string}   displayMode  'real' | 'nominal'
+ */
+function exportToCsv(rows, config, displayMode) {
+  const isReal = displayMode === 'real';
+  const d = (row, field) => toDisplayValue(row, field, displayMode);
+
+  // Assumptions block
+  const assumptions = [
+    ['# FIRE2 Projection Export'],
+    ['# Generated', new Date().toISOString()],
+    ['# Display mode', displayMode],
+    ['# Inflation rate (%)', config.inflationRate ?? 2.5],
+    ['# Retirement age', config.retirementAge],
+    ['# End age', config.endAge],
+    ['# Retirement spending (today\'s £)', config.retirementSpending],
+    ['# Drawdown rate (%)', config.drawdown?.rate ?? 0],
+    ['# Max income ceiling (£)', config.maxIncome ?? 'none'],
+    ['# DB pension enabled', config.dbPension.enabled],
+    config.dbPension.enabled ? ['# DB pension annual income (£)', config.dbPension.annualIncome] : null,
+    config.dbPension.enabled ? ['# DB pension start age', config.dbPension.startAge] : null,
+    ['# State pension enabled', config.statePension.enabled],
+    config.statePension.enabled ? ['# State pension annual income (£)', config.statePension.annualIncome] : null,
+    config.statePension.enabled ? ['# State pension start age', config.statePensionAge] : null,
+    config.statePension.enabled ? ['# State pension growth model', config.statePension.growthModel ?? 'real'] : null,
+    ['#'],
+  ].filter(Boolean).map(row => row.map(v => `"${v}"`).join(',')).join('\n');
+
+  // Column headers
+  const unit = isReal ? "today's £" : 'nominal £';
+  const headers = [
+    'Year', 'Age', 'Phase',
+    `ISA Balance (${unit})`, `SIPP Balance (${unit})`, `Bonds Balance (${unit})`, `Cash Balance (${unit})`, `Net Worth (${unit})`,
+    `Contributions (${unit})`, `Growth (${unit})`,
+    `DB Income (${unit})`, `SP Income (${unit})`, `Total Guaranteed Income (${unit})`,
+    `ISA Drawn (${unit})`, `SIPP Drawn (${unit})`, `Bonds Drawn (${unit})`, `Cash Drawn (${unit})`, `Portfolio Drawn (${unit})`,
+    `Total Income (${unit})`, 'Excess Income (£)',
+    `Surplus/Deficit (${unit})`,
+    'Note',
+  ];
+
+  const dataRows = rows.map(row => [
+    row.year, row.age, row.phase,
+    d(row, 'isaBalance'), d(row, 'sippBalance'), d(row, 'premiumBondsBalance'), d(row, 'cashBalance'), d(row, 'totalNetWorth'),
+    d(row, 'totalContributions'), d(row, 'totalGrowth'),
+    d(row, 'dbIncome'), d(row, 'stateIncome'), d(row, 'totalPensionIncome'),
+    d(row, 'isaWithdrawn'), d(row, 'sippWithdrawn'), d(row, 'premiumBondsWithdrawn'), d(row, 'cashWithdrawn'), d(row, 'totalWithdrawn'),
+    d(row, 'totalIncome'), row.excessIncome,
+    d(row, 'surplusDeficit'),
+    `"${(row.note || '').replace(/"/g, '""')}"`,
+  ].join(','));
+
+  const csv = [assumptions, headers.join(','), ...dataRows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `fire2-projection-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
