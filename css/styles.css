@@ -462,6 +462,17 @@ header {
   color: var(--warning);
 }
 
+/* ── Auto-fill actions column ────────────────── */
+.year-table .col-actions {
+  white-space: nowrap;
+  padding: 0.25rem 0.5rem;
+  vertical-align: middle;
+}
+
+.year-table .col-actions .btn + .btn {
+  margin-left: 0.3rem;
+}
+
 .year-table .thead-group th:first-child,
 .year-table .thead-group th:nth-child(2) {
   background: var(--surface-2);
