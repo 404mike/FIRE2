@@ -1084,3 +1084,73 @@ test('no ceiling (drawdownRate=0): full spending gap withdrawn from portfolio', 
   assert.strictEqual(rows[0].isaWithdrawn, 10000, 'full spending gap withdrawn when no ceiling');
   assert.strictEqual(rows[0].shortfall,    0);
 });
+
+// ── Bridge phase ─────────────────────────────────────────────────────────────
+
+test('bridge phase: years between retirement and first pension start are labelled bridge', () => {
+  // retirementAge=58, DB pension starts at 65, state pension starts at 67
+  // ages 58–64 should be 'bridge', ages 65+ should be 'retire'
+  const config = makeConfig({ currentAge: 58, retirementAge: 58, endAge: 66, drawdownRate: 0 });
+  config.dbPension    = { enabled: true, annualIncome: 10000, startAge: 65 };
+  config.statePension = { enabled: true, annualIncome: 8000 };
+  config.statePensionAge = 67;
+  const rows = runProjection(config);
+  // ages 58–64 → bridge
+  for (let i = 0; i <= 6; i++) {
+    assert.strictEqual(rows[i].phase, 'bridge', `age ${58 + i} should be bridge`);
+  }
+  // age 65 → retire (DB pension starts)
+  assert.strictEqual(rows[7].phase, 'retire', 'age 65 should be retire (DB starts)');
+});
+
+test('bridge phase: no bridge when no pensions are enabled', () => {
+  // No enabled pensions → bridge end = retirementAge → no bridge phase at all
+  const config = makeConfig({ currentAge: 60, retirementAge: 60, endAge: 62, drawdownRate: 0 });
+  const rows = runProjection(config);
+  for (const row of rows) {
+    assert.strictEqual(row.phase, 'retire', `age ${row.age} should be retire when no pensions enabled`);
+  }
+});
+
+test('bridge phase: no bridge when pension starts at retirement age', () => {
+  // DB pension starts exactly at retirement age → bridgeEndAge === retirementAge → no bridge
+  const config = makeConfig({ currentAge: 60, retirementAge: 60, endAge: 62, drawdownRate: 0 });
+  config.dbPension = { enabled: true, annualIncome: 10000, startAge: 60 };
+  const rows = runProjection(config);
+  for (const row of rows) {
+    assert.strictEqual(row.phase, 'retire', `age ${row.age} should be retire when pension starts at retirement`);
+  }
+});
+
+test('bridge phase: accumulate phase still works before retirementAge', () => {
+  const config = makeConfig({ currentAge: 55, retirementAge: 60, endAge: 57, drawdownRate: 0 });
+  config.dbPension = { enabled: true, annualIncome: 10000, startAge: 65 };
+  const rows = runProjection(config);
+  assert.strictEqual(rows[0].phase, 'accumulate', 'age 55 should be accumulate');
+  assert.strictEqual(rows[1].phase, 'accumulate', 'age 56 should be accumulate');
+  assert.strictEqual(rows[2].phase, 'accumulate', 'age 57 should be accumulate');
+});
+
+// ── surplusDeficit field ─────────────────────────────────────────────────────
+
+test('surplusDeficit is positive (surplus) when income exceeds spending', () => {
+  const config = makeConfig({ balance: 100000, growthRate: 0, drawdownRate: 0, spending: 5000 });
+  config.dbPension = { enabled: true, annualIncome: 10000, startAge: 60 };
+  const rows = runProjection(config);
+  // Total income = 10000 (pension); spending = 5000 → surplusDeficit = +5000
+  assert.strictEqual(rows[0].surplusDeficit, 5000, 'surplusDeficit should be +5000');
+});
+
+test('surplusDeficit is negative (deficit) when spending exceeds income', () => {
+  // No pension, no portfolio (can't afford spending) → shortfall = spending
+  const config = makeConfig({ balance: 0, growthRate: 0, drawdownRate: 0, spending: 10000 });
+  const rows = runProjection(config);
+  // No income, spending = 10000 → surplusDeficit = −10000
+  assert.strictEqual(rows[0].surplusDeficit, -10000, 'surplusDeficit should be -10000');
+});
+
+test('surplusDeficit is zero during accumulation phase', () => {
+  const config = makeConfig({ currentAge: 40, retirementAge: 65, endAge: 41, drawdownRate: 0 });
+  const rows = runProjection(config);
+  assert.strictEqual(rows[0].surplusDeficit, 0, 'surplusDeficit should be 0 in accumulation');
+});
