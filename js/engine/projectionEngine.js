@@ -241,13 +241,17 @@ export function runProjection(config, { debug = false } = {}) {
       // growthRate > drawdownRate the portfolio grows at the net rate.
       const rateDrawdown = preGrowthPortfolio * drawdownRate;
 
-      // Exactly one withdrawal strategy is active at a time:
-      //   • drawdownRate > 0 → percentage drawdown drives the withdrawal
-      //   • drawdownRate = 0 → spending gap drives the withdrawal
-      // Using both simultaneously would cause a double-withdrawal bug where
-      // the spending amount silently overrides the configured rate, draining
-      // the portfolio far faster than expected.
-      const gap = drawdownRate > 0 ? rateDrawdown : spendingGap;
+      // When retired: the spending gap (required spending − guaranteed income) is
+      // the primary driver of portfolio withdrawals. If a drawdown rate is configured
+      // it acts as a CEILING — the portfolio is never drawn beyond rate × opening
+      // balance — which prevents over-withdrawal in low-spend years (e.g. when
+      // pension income largely covers spending).
+      //
+      // When pre-retirement (e.g. SIPP accessible before retirementAge): the rate
+      // drives the withdrawal since there is no spending requirement before retirement.
+      const gap = isRetired
+        ? (drawdownRate > 0 ? Math.min(spendingGap, rateDrawdown) : spendingGap)
+        : (drawdownRate > 0 ? rateDrawdown : 0);
 
       // ── Step 4a: Account-specific drawdown rate overrides ─────────────────
       // These draw a specific percentage from a single account BEFORE the main
@@ -412,6 +416,8 @@ export function runProjection(config, { debug = false } = {}) {
     const surplus = Math.max(0, totalIncome - requiredSpending);
     const totalContributions =
       isaContribution + sippContribution + premiumBondsContribution + cashContribution;
+    const totalGrowth =
+      growthAmt.isa + growthAmt.sipp + growthAmt.premiumBonds + growthAmt.cash;
 
     const row = {
       year,
@@ -444,11 +450,13 @@ export function runProjection(config, { debug = false } = {}) {
       realShortfall:            Math.round(shortfall / inflationFactor),
       realSurplus:              Math.round(surplus / inflationFactor),
       realTotalContributions:   Math.round(totalContributions / inflationFactor),
+      realTotalGrowth:          Math.round(totalGrowth / inflationFactor),
       isaContribution:     Math.round(isaContribution),
       sippContribution:    Math.round(sippContribution),
       premiumBondsContribution: Math.round(premiumBondsContribution),
       cashContribution:    Math.round(cashContribution),
       totalContributions:  Math.round(totalContributions),
+      totalGrowth:         Math.round(totalGrowth),
       isaWithdrawn:        Math.round(isaWithdrawn),
       sippWithdrawn:       Math.round(sippWithdrawn),
       premiumBondsWithdrawn: Math.round(premiumBondsWithdrawn),
